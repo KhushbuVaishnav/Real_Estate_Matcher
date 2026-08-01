@@ -1,0 +1,76 @@
+{
+  "_note": "Illustrative sample data for development/testing. Ratings shown here are placeholders on a 1-10 scale (loosely modeled on GreatSchools-style scoring) and are NOT pulled from a live source. Before using this in anything real, replace with actual current ratings from greatschools.org or the GreatSchools API — school ratings change year to year and this file will go stale.",
+
+  "John Gill Elementary": {
+    "level": "elementary",
+    "rating": 7,
+    "district": "Redwood City School District",
+    "enrollment": 410
+  },
+  "Roy Cloud Elementary": {
+    "level": "elementary",
+    "rating": 9,
+    "district": "Redwood City School District",
+    "enrollment": 520
+  },
+  "Roy Cloud School": {
+    "level": "K-8",
+    "rating": 9,
+    "district": "Redwood City School District",
+    "enrollment": 520
+  },
+  "James Flood Elementary": {
+    "level": "elementary",
+    "rating": 6,
+    "district": "Redwood City School District",
+    "enrollment": 380
+  },
+  "Clifford Elementary": {
+    "level": "elementary",
+    "rating": 8,
+    "district": "Redwood City School District",
+    "enrollment": 440
+  },
+  "Adelante Selby Spanish Immersion": {
+    "level": "elementary",
+    "rating": 6,
+    "district": "Redwood City School District",
+    "enrollment": 460
+  },
+  "Hoover Elementary": {
+    "level": "elementary",
+    "rating": 5,
+    "district": "Redwood City School District",
+    "enrollment": 390
+  },
+  "North Star Academy": {
+    "level": "elementary",
+    "rating": 4,
+    "district": "Redwood City School District",
+    "enrollment": 350
+  },
+  "Kennedy Middle School": {
+    "level": "middle",
+    "rating": 7,
+    "district": "Redwood City School District",
+    "enrollment": 780
+  },
+  "Redwood City 7th & 8th Grade Academy": {
+    "level": "middle",
+    "rating": 5,
+    "district": "Redwood City School District",
+    "enrollment": 610
+  },
+  "Sequoia High School": {
+    "level": "high",
+    "rating": 7,
+    "district": "Sequoia Union High School District",
+    "enrollment": 2350
+  },
+  "Woodside High School": {
+    "level": "high",
+    "rating": 8,
+    "district": "Sequoia Union High School District",
+    "enrollment": 1980
+  }
+}
