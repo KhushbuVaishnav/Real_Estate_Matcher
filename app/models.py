@@ -5,8 +5,10 @@ Pydantic request/response models. Separated from routers so the shape of
 the API is defined in one place, independent of the handler logic.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
+
+from app.config import VALID_DATA_SOURCES, VALID_AI_PROVIDERS
 
 
 class ListingQuery(BaseModel):
@@ -46,8 +48,15 @@ class ListingQuery(BaseModel):
     )
     data_source: Optional[str] = Field(
         None, example=None,
-        description='Overrides DATA_SOURCE from .env for this request only. One of: "live", "sample", "realistic", "generated".'
+        description=f'Overrides DATA_SOURCE from .env for this request only. One of: {VALID_DATA_SOURCES}.'
     )
+
+    @field_validator("data_source")
+    @classmethod
+    def _validate_data_source(cls, v):
+        if v is not None and v not in VALID_DATA_SOURCES:
+            raise ValueError(f"data_source must be one of {VALID_DATA_SOURCES}, got '{v}'")
+        return v
 
 
 class MatchRequest(BaseModel):
@@ -58,5 +67,12 @@ class MatchRequest(BaseModel):
     )
     ai_provider: Optional[str] = Field(
         None, example=None,
-        description='Overrides AI_PROVIDER from .env for this request only. One of: "anthropic", "openai".'
+        description=f'Overrides AI_PROVIDER from .env for this request only. One of: {VALID_AI_PROVIDERS}.'
     )
+
+    @field_validator("ai_provider")
+    @classmethod
+    def _validate_ai_provider(cls, v):
+        if v is not None and v not in VALID_AI_PROVIDERS:
+            raise ValueError(f"ai_provider must be one of {VALID_AI_PROVIDERS}, got '{v}'")
+        return v

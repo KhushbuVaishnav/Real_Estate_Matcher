@@ -25,6 +25,12 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent  # .../app
 DATA_DIR = BASE_DIR / "data"
 
+# Single source of truth for valid option values — imported by services and
+# routers that need to validate against these, instead of each defining its
+# own copy (which is how these can silently drift out of sync over time).
+VALID_DATA_SOURCES = ("live", "sample", "realistic", "generated")
+VALID_AI_PROVIDERS = ("anthropic", "openai")
+
 
 class Settings:
     # --- Data source ---
@@ -56,10 +62,14 @@ class Settings:
     MAX_TOKENS: int = int(os.environ.get("MAX_TOKENS", 2000))
     MAX_CONCURRENT_BATCHES: int = int(os.environ.get("MAX_CONCURRENT_BATCHES", 4))
     # How many batches run at once instead of one-at-a-time. Higher = faster
-    # wall-clock time for a big search, at the cost of hitting your AI
-    # provider's rate limits sooner if you push it too high. 3-5 is a
-    # reasonable starting range; raise cautiously and watch for rate-limit
-    # errors if you push higher.
+    # wall-clock time for a big search. Don't guess this — check the
+    # "[<provider> rate limits] requests: X/Y remaining" lines this app
+    # prints to the terminal on every call. If X stays close to Y (lots of
+    # headroom left) with zero retry/429 lines, you likely have room to
+    # raise this well past the conservative default of 4 — go up gradually
+    # (e.g. try 8, confirm it's still clean) rather than jumping to an
+    # extreme value, since diminishing returns and thread overhead mean
+    # more isn't always proportionally faster.
 
     # --- API / server ---
     CORS_ALLOW_ORIGINS: list = os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
@@ -67,13 +77,11 @@ class Settings:
 
     def validate(self):
         """Call at startup to fail fast on misconfiguration instead of erroring mid-request."""
-        valid_sources = {"live", "sample", "realistic", "generated"}
-        if self.DATA_SOURCE not in valid_sources:
-            raise ValueError(f"DATA_SOURCE must be one of {valid_sources}, got '{self.DATA_SOURCE}'")
+        if self.DATA_SOURCE not in VALID_DATA_SOURCES:
+            raise ValueError(f"DATA_SOURCE must be one of {VALID_DATA_SOURCES}, got '{self.DATA_SOURCE}'")
 
-        valid_providers = {"anthropic", "openai"}
-        if self.AI_PROVIDER not in valid_providers:
-            raise ValueError(f"AI_PROVIDER must be one of {valid_providers}, got '{self.AI_PROVIDER}'")
+        if self.AI_PROVIDER not in VALID_AI_PROVIDERS:
+            raise ValueError(f"AI_PROVIDER must be one of {VALID_AI_PROVIDERS}, got '{self.AI_PROVIDER}'")
 
         if self.AI_PROVIDER == "anthropic" and not self.ANTHROPIC_API_KEY:
             raise ValueError("AI_PROVIDER is 'anthropic' but ANTHROPIC_API_KEY is not set in .env")

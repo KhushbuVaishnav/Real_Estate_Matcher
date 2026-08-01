@@ -11,10 +11,8 @@ Then open http://127.0.0.1:8000/docs for interactive Swagger docs.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
+from app.config import settings, VALID_DATA_SOURCES, VALID_AI_PROVIDERS
 from app.routers import listings, match
-from app.services.listings_service import VALID_DATA_SOURCES
-from app.services.matching_service import VALID_AI_PROVIDERS
 
 settings.validate()  # fail fast on misconfiguration (bad DATA_SOURCE, missing API key, etc.)
 

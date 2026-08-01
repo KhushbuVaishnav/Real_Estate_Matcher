@@ -12,7 +12,7 @@ import json
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
-from app.config import settings
+from app.config import settings, VALID_AI_PROVIDERS
 
 SYSTEM_PROMPT = """You are a real estate matching assistant. You will be given:
 1. A buyer's freeform description of what they want in a home.
@@ -227,9 +227,6 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict], on_re
         raise RuntimeError(f"OpenAI API error ({e.status_code}): {e.message}") from e
 
     return _parse_response_text(response.choices[0].message.content)
-
-
-VALID_AI_PROVIDERS = ("anthropic", "openai")
 
 
 def score_batch(user_preferences: str, listings_batch: list[dict], ai_provider: str = None, on_retry=None) -> list[dict]:

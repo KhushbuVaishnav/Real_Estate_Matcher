@@ -34,7 +34,10 @@ def run(hard_filters: HardFilters, user_preferences: str):
 
 
 if __name__ == "__main__":
-    filters = HardFilters(cities=["Redwood City"])
+    # No hardcoded city filter — sample/realistic/generated are Redwood-City-only
+    # anyway, and hardcoding it here would silently zero out results against
+    # DATA_SOURCE=live, whose actual city has changed before (see README).
+    filters = HardFilters()
     preferences = (
         "I want a quiet street, an updated kitchen, and a spare room "
         "I can use as a home office. I don't want to be on a busy road "

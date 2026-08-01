@@ -11,7 +11,7 @@ import requests
 from dataclasses import dataclass
 from typing import Optional
 
-from app.config import settings
+from app.config import settings, VALID_DATA_SOURCES
 
 
 @dataclass
@@ -31,7 +31,6 @@ class HardFilters:
     exclude_styles: Optional[list] = None        # e.g. ["Ranch"]
 
 
-VALID_DATA_SOURCES = ("live", "sample", "realistic", "generated")
 
 
 def fetch_listings(filters: HardFilters, limit: int = None, data_source: str = None) -> list[dict]:

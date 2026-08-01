@@ -31,7 +31,7 @@ def main():
 
     print(f"Data source: {settings.DATA_SOURCE}\n")
 
-    filters = HardFilters(cities=["Redwood City"])
+    filters = HardFilters()  # no hardcoded city — see README for why (live source's city isn't fixed)
     raw = fetch_listings(filters)
     listings = [normalize_listing(r) for r in raw]
     print(f"Scoring {len(listings)} listings...\n")
