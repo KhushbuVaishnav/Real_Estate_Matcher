@@ -94,6 +94,8 @@ def get_match_status(job_id: str):
         "status": job["status"],
         "completed_batches": job["completed_batches"],
         "total_batches": job["total_batches"],
+        "in_flight_count": job.get("in_flight_count", 0),
+        "retry_count": job.get("retry_count", 0),
         "count": len(job["results"]),
         "matches": job["results"],
     }

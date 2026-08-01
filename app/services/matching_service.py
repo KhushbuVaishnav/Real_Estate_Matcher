@@ -11,6 +11,7 @@ and easy to forget. Now it's one env var: AI_PROVIDER=anthropic|openai.
 import json
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 from app.config import settings
 
 SYSTEM_PROMPT = """You are a real estate matching assistant. You will be given:
@@ -88,20 +89,94 @@ def _parse_response_text(text: str) -> list[dict]:
         return []
 
 
-def _score_batch_anthropic(user_preferences: str, listings_batch: list[dict]) -> list[dict]:
+def _retry_with_backoff(fn, max_attempts=4, base_delay=2.0, on_retry=None):
+    """
+    Retries fn() on rate-limit errors with exponential backoff (2s, 4s, 8s...).
+    Rate limits (too many requests/tokens per minute) are expected, temporary
+    conditions — especially now that batches run concurrently
+    (MAX_CONCURRENT_BATCHES) — not a real failure, so retrying briefly is the
+    standard approach rather than immediately surfacing an error to the user.
+    Any other exception (auth, not-found, etc.) is raised immediately, since
+    those won't resolve by waiting.
+
+    on_retry(attempt, delay), if given, is called each time a retry is about
+    to happen — used by the job runner to surface "this is retrying" to the
+    frontend via the poll endpoint, not just as a terminal print.
+    """
+    import time
+    import anthropic
+    import openai
+
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except (anthropic.RateLimitError, openai.RateLimitError):
+            if attempt == max_attempts - 1:
+                raise
+            delay = base_delay * (2 ** attempt)
+            print(f"[rate limit] Hit 429, retrying in {delay:.0f}s (attempt {attempt + 1}/{max_attempts})...")
+            if on_retry:
+                on_retry(attempt + 1, delay)
+            time.sleep(delay)
+
+
+def _log_rate_limit_headers(provider: str, headers) -> None:
+    """
+    Prints the current rate-limit standing after every API call, straight
+    to the uvicorn terminal — the most precise, real-time source for this
+    (no Console dashboard lag). Anthropic and OpenAI use different header
+    names for the same concepts, so each is read separately; missing
+    headers are shown as '?' rather than crashing, since header sets can
+    change between SDK/API versions.
+    """
+    if provider == "Anthropic":
+        req_remaining = headers.get("anthropic-ratelimit-requests-remaining", "?")
+        req_limit = headers.get("anthropic-ratelimit-requests-limit", "?")
+        tok_remaining = headers.get("anthropic-ratelimit-tokens-remaining", "?")
+        tok_limit = headers.get("anthropic-ratelimit-tokens-limit", "?")
+        reset = headers.get("anthropic-ratelimit-requests-reset", "?")
+    else:  # OpenAI
+        req_remaining = headers.get("x-ratelimit-remaining-requests", "?")
+        req_limit = headers.get("x-ratelimit-limit-requests", "?")
+        tok_remaining = headers.get("x-ratelimit-remaining-tokens", "?")
+        tok_limit = headers.get("x-ratelimit-limit-tokens", "?")
+        reset = headers.get("x-ratelimit-reset-requests", "?")
+
+    print(
+        f"[{provider} rate limits] requests: {req_remaining}/{req_limit} remaining  |  "
+        f"tokens: {tok_remaining}/{tok_limit} remaining  |  resets: {reset}"
+    )
+
+
+def _score_batch_anthropic(user_preferences: str, listings_batch: list[dict], on_retry=None) -> list[dict]:
     import anthropic
 
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     user_message = f"Buyer wants: {user_preferences}\n\nListings:\n{json.dumps(_build_listing_payload(listings_batch), indent=2)}"
 
-    try:
-        response = client.messages.create(
+    def call():
+        # with_raw_response gives access to the actual HTTP headers (rate
+        # limit info) alongside the parsed response — .parse() below gets
+        # you the normal Message object, same as client.messages.create()
+        # would have returned directly.
+        raw = client.messages.with_raw_response.create(
             model=settings.ANTHROPIC_MODEL,
             max_tokens=settings.MAX_TOKENS,
             temperature=settings.TEMPERATURE,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
+        _log_rate_limit_headers("Anthropic", raw.headers)
+        return raw.parse()
+
+    try:
+        response = _retry_with_backoff(call, on_retry=on_retry)
+    except anthropic.RateLimitError as e:
+        raise RuntimeError(
+            "Anthropic rate limit hit repeatedly even after retrying — you're sending requests "
+            "faster than your account's current limit allows. Try lowering MAX_CONCURRENT_BATCHES "
+            "in .env, or check your rate limits in the Anthropic Console."
+        ) from e
     except anthropic.AuthenticationError as e:
         raise RuntimeError(
             "Anthropic authentication failed — check ANTHROPIC_API_KEY in .env and that billing is set up."
@@ -114,14 +189,15 @@ def _score_batch_anthropic(user_preferences: str, listings_batch: list[dict]) ->
     return _parse_response_text(response.content[0].text)
 
 
-def _score_batch_openai(user_preferences: str, listings_batch: list[dict]) -> list[dict]:
+def _score_batch_openai(user_preferences: str, listings_batch: list[dict], on_retry=None) -> list[dict]:
+    import openai
     from openai import OpenAI, AuthenticationError, NotFoundError, APIStatusError
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     user_message = f"Buyer wants: {user_preferences}\n\nListings:\n{json.dumps(_build_listing_payload(listings_batch), indent=2)}"
 
-    try:
-        response = client.chat.completions.create(
+    def call():
+        raw = client.chat.completions.with_raw_response.create(
             model=settings.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -130,6 +206,17 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict]) -> li
             temperature=settings.TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
         )
+        _log_rate_limit_headers("OpenAI", raw.headers)
+        return raw.parse()
+
+    try:
+        response = _retry_with_backoff(call, on_retry=on_retry)
+    except openai.RateLimitError as e:
+        raise RuntimeError(
+            "OpenAI rate limit hit repeatedly even after retrying — you're sending requests faster "
+            "than your account's current limit allows. Try lowering MAX_CONCURRENT_BATCHES in .env, "
+            "or check your rate limits at platform.openai.com."
+        ) from e
     except AuthenticationError as e:
         raise RuntimeError(
             "OpenAI authentication failed — check OPENAI_API_KEY in .env and that billing is set up."
@@ -145,13 +232,13 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict]) -> li
 VALID_AI_PROVIDERS = ("anthropic", "openai")
 
 
-def score_batch(user_preferences: str, listings_batch: list[dict], ai_provider: str = None) -> list[dict]:
+def score_batch(user_preferences: str, listings_batch: list[dict], ai_provider: str = None, on_retry=None) -> list[dict]:
     provider = ai_provider or settings.AI_PROVIDER
     if provider not in VALID_AI_PROVIDERS:
         raise ValueError(f"ai_provider must be one of {VALID_AI_PROVIDERS}, got '{provider}'")
     if provider == "openai":
-        return _score_batch_openai(user_preferences, listings_batch)
-    return _score_batch_anthropic(user_preferences, listings_batch)
+        return _score_batch_openai(user_preferences, listings_batch, on_retry)
+    return _score_batch_anthropic(user_preferences, listings_batch, on_retry)
 
 
 def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str = None) -> list[dict]:
@@ -160,12 +247,20 @@ def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str 
     anything that just wants a single call/response. The API's /match/start
     endpoint uses the job-based version below instead, which supports
     real mid-search cancellation.
+
+    Batches run concurrently (up to settings.MAX_CONCURRENT_BATCHES at once)
+    rather than one at a time — for a large search this is the single
+    biggest lever on total wall-clock time, since network/API latency per
+    batch otherwise adds up linearly.
     """
+    batches = [listings[i:i + settings.BATCH_SIZE] for i in range(0, len(listings), settings.BATCH_SIZE)]
     scores_by_id = {}
-    for i in range(0, len(listings), settings.BATCH_SIZE):
-        batch = listings[i:i + settings.BATCH_SIZE]
-        for r in score_batch(user_preferences, batch, ai_provider):
-            scores_by_id[str(r["mls_id"])] = r  # str() — model may return ids as strings even when source has ints
+
+    with ThreadPoolExecutor(max_workers=settings.MAX_CONCURRENT_BATCHES) as executor:
+        futures = [executor.submit(score_batch, user_preferences, batch, ai_provider) for batch in batches]
+        for future in as_completed(futures):
+            for r in future.result():
+                scores_by_id[str(r["mls_id"])] = r  # str() — model may return ids as strings even when source has ints
 
     ranked = []
     for listing in listings:
@@ -207,6 +302,9 @@ def start_match_job(user_preferences: str, listings: list[dict], ai_provider: st
         "cancel_event": threading.Event(),
         "total_batches": total_batches,
         "completed_batches": 0,
+        "in_flight_count": 0,      # how many batches are actively running right now, at this instant
+        "retry_count": 0,          # cumulative retries triggered so far across the whole job
+        "job_lock": threading.Lock(),  # protects retry_count from concurrent batch threads
     }
     with _jobs_lock:
         _jobs[job_id] = job
@@ -217,18 +315,48 @@ def start_match_job(user_preferences: str, listings: list[dict], ai_provider: st
 
 
 def _run_job(job_id: str, user_preferences: str, listings: list[dict], ai_provider: str = None):
+    """
+    Runs up to settings.MAX_CONCURRENT_BATCHES batches at once instead of
+    one-at-a-time — the sliding-window pattern below submits a fresh batch
+    each time one finishes, keeping that many in flight simultaneously.
+    Cancellation still works the same as before: once cancel_event is set,
+    no NEW batches are submitted, but whichever are already in flight (up to
+    MAX_CONCURRENT_BATCHES of them) are allowed to finish rather than
+    abandoned mid-request.
+    """
     job = _jobs[job_id]
     cancel_event = job["cancel_event"]
     scores_by_id = {}
+    batches = [listings[i:i + settings.BATCH_SIZE] for i in range(0, len(listings), settings.BATCH_SIZE)]
+    batch_iter = iter(batches)
+
+    def on_retry(attempt, delay):
+        with job["job_lock"]:
+            job["retry_count"] += 1
 
     try:
-        for i in range(0, len(listings), settings.BATCH_SIZE):
-            if cancel_event.is_set():
-                break
-            batch = listings[i:i + settings.BATCH_SIZE]
-            for r in score_batch(user_preferences, batch, ai_provider):
-                scores_by_id[str(r["mls_id"])] = r
-            job["completed_batches"] += 1
+        with ThreadPoolExecutor(max_workers=settings.MAX_CONCURRENT_BATCHES) as executor:
+            in_flight = {}  # future -> True, just used as a set with quick membership ops
+
+            def submit_next():
+                if cancel_event.is_set():
+                    return
+                batch = next(batch_iter, None)
+                if batch is not None:
+                    in_flight[executor.submit(score_batch, user_preferences, batch, ai_provider, on_retry)] = True
+                job["in_flight_count"] = len(in_flight)
+
+            for _ in range(settings.MAX_CONCURRENT_BATCHES):
+                submit_next()
+
+            while in_flight:
+                done, _ = wait(in_flight.keys(), return_when=FIRST_COMPLETED)
+                for future in done:
+                    for r in future.result():
+                        scores_by_id[str(r["mls_id"])] = r
+                    job["completed_batches"] += 1
+                    del in_flight[future]
+                    submit_next()  # keep the window full, unless cancelled
 
         ranked = []
         for listing in listings:

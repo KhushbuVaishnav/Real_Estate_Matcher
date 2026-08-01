@@ -141,7 +141,8 @@ function App() {
   const [status, setStatus] = useState("idle"); // idle | loading | error | done
   const [errorMessage, setErrorMessage] = useState("");
   const [results, setResults] = useState([]);
-  const [progress, setProgress] = useState({ completed: 0, total: 0 });
+  const [progress, setProgress] = useState({ completed: 0, total: 0, inFlight: 0 });
+  const [retryCount, setRetryCount] = useState(0);
   const [wasCancelled, setWasCancelled] = useState(false);
   const abortControllerRef = useRef(null); // used for the quick /listings (Browse all) call
   const jobIdRef = useRef(null);           // used for the background AI-matching job
@@ -198,7 +199,8 @@ function App() {
     setStatus("idle");
     setErrorMessage("");
     setResults([]);
-    setProgress({ completed: 0, total: 0 });
+    setProgress({ completed: 0, total: 0, inFlight: 0 });
+    setRetryCount(0);
     setWasCancelled(false);
   }
 
@@ -214,7 +216,8 @@ function App() {
     setStatus("loading");
     setErrorMessage("");
     setResults([]); // clear stale results from the previous search immediately
-    setProgress({ completed: 0, total: 0 });
+    setProgress({ completed: 0, total: 0, inFlight: 0 });
+    setRetryCount(0);
     setWasCancelled(false);
 
     const controller = new AbortController();
@@ -272,7 +275,7 @@ function App() {
       }
       const startData = await startRes.json();
       jobIdRef.current = startData.job_id;
-      setProgress({ completed: 0, total: startData.total_batches });
+      setProgress({ completed: 0, total: startData.total_batches, inFlight: 0 });
 
       pollingActiveRef.current = true;
       while (pollingActiveRef.current) {
@@ -282,7 +285,8 @@ function App() {
           throw new Error(errData.detail || `Status check failed (${res.status})`);
         }
         const data = await res.json();
-        setProgress({ completed: data.completed_batches, total: data.total_batches });
+        setProgress({ completed: data.completed_batches, total: data.total_batches, inFlight: data.in_flight_count || 0 });
+        setRetryCount(data.retry_count || 0);
 
         if (data.status === "done" || data.status === "cancelled") {
           setResults(data.matches || []);
@@ -568,9 +572,14 @@ function App() {
               </p>
               <p className="state-panel__body">
                 {!skipAI && progress.total > 0
-                  ? `Scored batch ${progress.completed} of ${progress.total}. Click Cancel any time to stop and see what's been scored so far.`
+                  ? `Scored ${progress.completed} of ${progress.total} batches${progress.inFlight > 0 ? ` — ${progress.inFlight} running concurrently right now` : ""}. Click Cancel any time to stop and see what's been scored so far.`
                   : "Pulling candidates, then scoring each one against what you described."}
               </p>
+              {retryCount > 0 && (
+                <p className="state-panel__retry-note">
+                  ⚠ {retryCount} {retryCount === 1 ? "retry" : "retries"} so far due to rate limits — still working, just a bit slower than usual.
+                </p>
+              )}
             </div>
           )}
 

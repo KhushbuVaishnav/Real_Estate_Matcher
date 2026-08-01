@@ -84,15 +84,29 @@ Restart `uvicorn` (or let `--reload` pick it up) after changing `.env`. This
 is what the header dropdowns default to on page load, and what any request
 uses if it doesn't specify an override.
 
+**One practical gotcha when switching to `live`:** the City filter defaults
+to "Redwood City" (correct for `sample`/`realistic`/`generated`, which are
+our own fixed data), but `live` is SimplyRETS' real sandbox and its actual
+city has changed before (see below) — clear or change the City field when
+testing `live`, or you may get zero results for reasons that have nothing to
+do with your other filters.
+
 ## Data sources, what each is for
 
 - **`live`** — real SimplyRETS sandbox API. Small (tens of listings, not
-  hundreds), Houston-only, and its `remarks` field is identical
-  boilerplate text on every listing — not useful for testing AI matching
-  quality, only for seeing what a real MLS feed's response shape looks like.
-  **The listing count isn't fixed** — it's a third-party demo service, and
-  we've seen it change (65 one day, 45 the next) without any change on our
-  end. Don't rely on a specific count from this source staying stable.
+  hundreds), and its `remarks` field is identical boilerplate text on every
+  listing — not useful for testing AI matching quality, only for seeing what
+  a real MLS feed's response shape looks like.
+  **Nothing about this source is fixed** — it's a third-party demo service,
+  and its contents can and do change without any action on our end. We've
+  observed both the total listing count change (65 one day, 45 the next) and
+  the city itself change (originally Redwood City, later Houston). Don't
+  hardcode an assumed city or count anywhere against this source — check
+  what's actually in it first:
+  ```bash
+  curl -u simplyrets:simplyrets "https://api.simplyrets.com/properties?limit=5" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); [print(l['address']['city']) for l in d]"
+  ```
 - **`sample`** — a handful of listings you can hand-edit directly for quick,
   controlled tests.
 - **`realistic`** — 14 hand-written Redwood City listings with real pricing,
@@ -117,6 +131,25 @@ latency and cost, unlike testing against 14 listings. Use hard filters
 exactly like a real production system would — never send an entire
 inventory to an LLM per search. Or use "Browse all (skip AI)" in the
 frontend to test filters alone with zero AI cost.
+
+**Making matching faster:**
+- **`MAX_CONCURRENT_BATCHES`** (default 4) — batches run in parallel, not
+  one at a time. Raising this speeds up total wall-clock time for a large
+  search, but pushes more simultaneous requests at your AI provider.
+  **Don't guess this — check the actual evidence.** Every API call prints a
+  line like `[Anthropic rate limits] requests: 9999/10000 remaining` to your
+  terminal. If that number stays close to your limit with no retry/429 lines
+  showing up, you have real headroom and can raise this — try doubling it
+  (e.g. 4 → 8), confirm it's still clean, and go from there. If you start
+  seeing `[rate limit] Hit 429, retrying...` lines or the UI's retry-count
+  warning, that's your signal you've gone too high for your current account
+  tier. Cancellation still works correctly regardless of this setting — no
+  new batches get submitted once cancelled, but whichever are already in
+  flight are allowed to finish rather than abandoned mid-request.
+- **`ANTHROPIC_MODEL` / `OPENAI_MODEL`** — swap to a smaller/faster tier
+  (e.g. a Haiku-class Anthropic model) for quicker per-call responses, at
+  some cost to reasoning depth. Worth A/B testing quality with
+  `scripts/analyze_scores.py` before committing to a smaller model.
 
 ## Schools
 

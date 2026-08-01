@@ -54,6 +54,12 @@ class Settings:
     SCORE_THRESHOLD: int = int(os.environ.get("SCORE_THRESHOLD", 60))
     TEMPERATURE: float = float(os.environ.get("TEMPERATURE", 0.2))
     MAX_TOKENS: int = int(os.environ.get("MAX_TOKENS", 2000))
+    MAX_CONCURRENT_BATCHES: int = int(os.environ.get("MAX_CONCURRENT_BATCHES", 4))
+    # How many batches run at once instead of one-at-a-time. Higher = faster
+    # wall-clock time for a big search, at the cost of hitting your AI
+    # provider's rate limits sooner if you push it too high. 3-5 is a
+    # reasonable starting range; raise cautiously and watch for rate-limit
+    # errors if you push higher.
 
     # --- API / server ---
     CORS_ALLOW_ORIGINS: list = os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
