@@ -87,7 +87,7 @@ uses if it doesn't specify an override.
 ## Data sources, what each is for
 
 - **`live`** — real SimplyRETS sandbox API. Small (tens of listings, not
-  hundreds), Redwood City-only, and its `remarks` field is identical
+  hundreds), Houston-only, and its `remarks` field is identical
   boilerplate text on every listing — not useful for testing AI matching
   quality, only for seeing what a real MLS feed's response shape looks like.
   **The listing count isn't fixed** — it's a third-party demo service, and
