@@ -47,7 +47,7 @@ def _build_filters(request: MatchRequest) -> HardFilters:
 def _get_filtered_listings(request: MatchRequest) -> list[dict]:
     filters = _build_filters(request)
     try:
-        raw = fetch_listings(filters)
+        raw = fetch_listings(filters, data_source=request.filters.data_source)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Listings source request failed: {e}")
 
@@ -63,7 +63,7 @@ def match_listings(request: MatchRequest):
         return {"count": 0, "matches": []}
 
     try:
-        ranked = matching_service.rank_listings(request.preferences, listings)
+        ranked = matching_service.rank_listings(request.preferences, listings, request.ai_provider)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -74,7 +74,7 @@ def match_listings(request: MatchRequest):
 def start_match(request: MatchRequest):
     """Kicks off matching in a background thread, returns immediately with a job_id to poll."""
     listings = _get_filtered_listings(request)
-    job_id = matching_service.start_match_job(request.preferences, listings)
+    job_id = matching_service.start_match_job(request.preferences, listings, request.ai_provider)
     job = matching_service.get_job(job_id)
     return {"job_id": job_id, "total_batches": job["total_batches"]}
 

@@ -44,6 +44,10 @@ class ListingQuery(BaseModel):
         None, example=None,
         description='e.g. ["Ranch"] — excludes listings with that architectural style.'
     )
+    data_source: Optional[str] = Field(
+        None, example=None,
+        description='Overrides DATA_SOURCE from .env for this request only. One of: "live", "sample", "realistic", "generated".'
+    )
 
 
 class MatchRequest(BaseModel):
@@ -51,4 +55,8 @@ class MatchRequest(BaseModel):
     preferences: str = Field(
         ...,
         example="Quiet street, updated kitchen, a spare room for a home office, not near a busy road."
+    )
+    ai_provider: Optional[str] = Field(
+        None, example=None,
+        description='Overrides AI_PROVIDER from .env for this request only. One of: "anthropic", "openai".'
     )

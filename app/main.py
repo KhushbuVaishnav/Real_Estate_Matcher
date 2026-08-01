@@ -13,6 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import listings, match
+from app.services.listings_service import VALID_DATA_SOURCES
+from app.services.matching_service import VALID_AI_PROVIDERS
 
 settings.validate()  # fail fast on misconfiguration (bad DATA_SOURCE, missing API key, etc.)
 
@@ -40,6 +42,8 @@ def root():
     return {
         "status": "ok",
         "docs": "/docs",
-        "data_source": settings.DATA_SOURCE,
-        "ai_provider": settings.AI_PROVIDER,
+        "data_source": settings.DATA_SOURCE,       # default from .env — overridable per-request
+        "ai_provider": settings.AI_PROVIDER,        # default from .env — overridable per-request
+        "available_data_sources": list(VALID_DATA_SOURCES),
+        "available_ai_providers": list(VALID_AI_PROVIDERS),
     }

@@ -37,7 +37,7 @@ def get_listings(query: ListingQuery):
     """Hard-filter search only. Returns raw structured listings, no scoring."""
     filters = _build_filters(query)
     try:
-        raw = fetch_listings(filters)
+        raw = fetch_listings(filters, data_source=query.data_source)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Listings source request failed: {e}")
 

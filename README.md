@@ -66,19 +66,33 @@ change `API_BASE` at the top of `frontend/app.jsx` if your API runs elsewhere.
 
 ## Switching data source or AI provider
 
-No code edits needed — just change `.env`:
+Two ways to do this, depending on what you're after:
+
+**Live, per-search toggle (no restart needed)** — the "Source" and "Matched
+by" dropdowns in the app header let you switch on the fly and apply
+immediately to your very next search. This only affects that one request —
+it doesn't change any file, and resets back to the `.env` default the next
+time the server restarts. Good for quickly comparing sources or providers
+side by side.
+
+**Permanent default** — change `.env`:
 ```
 DATA_SOURCE=realistic     # or: live, sample, generated
 AI_PROVIDER=openai        # or: anthropic
 ```
-Restart `uvicorn` (or let `--reload` pick it up) after changing `.env`.
+Restart `uvicorn` (or let `--reload` pick it up) after changing `.env`. This
+is what the header dropdowns default to on page load, and what any request
+uses if it doesn't specify an override.
 
 ## Data sources, what each is for
 
-- **`live`** — real SimplyRETS sandbox API. Small (65 listings), fixed,
-  Redwood City-only, and its `remarks` field is identical boilerplate text
-  on every listing — not useful for testing AI matching quality, only for
-  seeing what a real MLS feed's response shape looks like.
+- **`live`** — real SimplyRETS sandbox API. Small (tens of listings, not
+  hundreds), Redwood City-only, and its `remarks` field is identical
+  boilerplate text on every listing — not useful for testing AI matching
+  quality, only for seeing what a real MLS feed's response shape looks like.
+  **The listing count isn't fixed** — it's a third-party demo service, and
+  we've seen it change (65 one day, 45 the next) without any change on our
+  end. Don't rely on a specific count from this source staying stable.
 - **`sample`** — a handful of listings you can hand-edit directly for quick,
   controlled tests.
 - **`realistic`** — 14 hand-written Redwood City listings with real pricing,

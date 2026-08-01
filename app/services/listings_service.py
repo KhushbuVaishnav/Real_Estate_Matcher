@@ -31,19 +31,26 @@ class HardFilters:
     exclude_styles: Optional[list] = None        # e.g. ["Ranch"]
 
 
-def fetch_listings(filters: HardFilters, limit: int = None) -> list[dict]:
+VALID_DATA_SOURCES = ("live", "sample", "realistic", "generated")
+
+
+def fetch_listings(filters: HardFilters, limit: int = None, data_source: str = None) -> list[dict]:
     """
-    Returns raw listing dicts from whichever source settings.DATA_SOURCE
-    points at. Applies price/beds/baths/city/sqft/property-type/HOA/stories/
-    style filters uniformly regardless of source.
+    Returns raw listing dicts from the given data_source, or
+    settings.DATA_SOURCE (the .env default) if none is passed. Applies
+    price/beds/baths/city/sqft/property-type/HOA/stories/style filters
+    uniformly regardless of source.
     """
     limit = limit or settings.DEFAULT_FETCH_LIMIT
+    source = data_source or settings.DATA_SOURCE
+    if source not in VALID_DATA_SOURCES:
+        raise ValueError(f"data_source must be one of {VALID_DATA_SOURCES}, got '{source}'")
 
-    if settings.DATA_SOURCE == "generated":
+    if source == "generated":
         listings = _fetch_from_json(settings.GENERATED_DATA_PATH, filters, limit)
-    elif settings.DATA_SOURCE == "realistic":
+    elif source == "realistic":
         listings = _fetch_from_json(settings.REALISTIC_DATA_PATH, filters, limit)
-    elif settings.DATA_SOURCE == "sample":
+    elif source == "sample":
         listings = _fetch_from_json(settings.SAMPLE_DATA_PATH, filters, limit)
     else:
         listings = _fetch_from_simplyrets(filters, limit)
@@ -62,6 +69,7 @@ def fetch_listings(filters: HardFilters, limit: int = None) -> list[dict]:
 
     if filters.max_stories is not None:
         listings = [l for l in listings if (l.get("property", {}).get("stories") or 0) <= filters.max_stories]
+
 
     if filters.exclude_styles:
         listings = [l for l in listings if l.get("property", {}).get("style") not in filters.exclude_styles]

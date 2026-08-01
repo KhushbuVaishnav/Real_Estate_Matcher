@@ -147,11 +147,20 @@ function App() {
   const jobIdRef = useRef(null);           // used for the background AI-matching job
   const pollingActiveRef = useRef(false);  // lets Cancel/Reset stop an in-progress poll loop
   const [backendMeta, setBackendMeta] = useState(null);
+  const [selectedDataSource, setSelectedDataSource] = useState(null);
+  const [selectedAiProvider, setSelectedAiProvider] = useState(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/`)
       .then((r) => r.json())
-      .then((data) => setBackendMeta(data))
+      .then((data) => {
+        setBackendMeta(data);
+        // Initialize the dropdowns to whatever .env currently defaults to —
+        // after this, they're fully user-controlled and override .env
+        // per-request without changing the server's actual config file.
+        setSelectedDataSource(data.data_source);
+        setSelectedAiProvider(data.ai_provider);
+      })
       .catch(() => setBackendMeta(null)); // silently ignore — header just falls back to a generic label
   }, []);
 
@@ -159,9 +168,9 @@ function App() {
   // (SimplyRETS sandbox) and "sample" listings have none, so the school rating
   // filter would silently do nothing on them. Disable the controls in that case
   // instead of letting someone set a value that's quietly ignored.
-  const schoolDataSupported = backendMeta
-    ? backendMeta.data_source === "realistic" || backendMeta.data_source === "generated"
-    : true; // assume supported while still connecting, so nothing flashes disabled-then-enabled
+  const schoolDataSupported = selectedDataSource === null
+    ? true // still connecting — assume supported so nothing flashes disabled-then-enabled
+    : selectedDataSource === "realistic" || selectedDataSource === "generated";
 
   function updateField(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -226,6 +235,7 @@ function App() {
       min_stories: filters.stories === "2plus" ? 2 : null,
       max_stories: filters.stories === "1" ? 1 : null,
       exclude_styles: filters.excludeRanch ? ["Ranch"] : null,
+      data_source: selectedDataSource,
     };
 
     try {
@@ -253,7 +263,7 @@ function App() {
       const startRes = await fetch(`${API_BASE}/match/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: filterBody, preferences: preferences.trim() }),
+        body: JSON.stringify({ filters: filterBody, preferences: preferences.trim(), ai_provider: selectedAiProvider }),
         signal: controller.signal,
       });
       if (!startRes.ok) {
@@ -303,8 +313,34 @@ function App() {
           <div className="title-block__mark">HOME<span>MATCH</span></div>
           <div className="title-block__meta">
             <span><strong>Type</strong>Single-family &amp; Condo</span>
-            <span><strong>Source</strong>{backendMeta ? (DATA_SOURCE_LABELS[backendMeta.data_source] || backendMeta.data_source) : "connecting..."}</span>
-            <span><strong>Matched by</strong>{backendMeta ? (AI_PROVIDER_LABELS[backendMeta.ai_provider] || backendMeta.ai_provider) : "connecting..."}</span>
+            <span className="title-block__control">
+              <strong>Source</strong>
+              {backendMeta ? (
+                <select
+                  className="title-block__select"
+                  value={selectedDataSource || ""}
+                  onChange={(e) => setSelectedDataSource(e.target.value)}
+                >
+                  {backendMeta.available_data_sources.map((s) => (
+                    <option key={s} value={s}>{DATA_SOURCE_LABELS[s] || s}</option>
+                  ))}
+                </select>
+              ) : "connecting..."}
+            </span>
+            <span className="title-block__control">
+              <strong>Matched by</strong>
+              {backendMeta ? (
+                <select
+                  className="title-block__select"
+                  value={selectedAiProvider || ""}
+                  onChange={(e) => setSelectedAiProvider(e.target.value)}
+                >
+                  {backendMeta.available_ai_providers.map((p) => (
+                    <option key={p} value={p}>{AI_PROVIDER_LABELS[p] || p}</option>
+                  ))}
+                </select>
+              ) : "connecting..."}
+            </span>
           </div>
         </div>
       </header>
@@ -393,7 +429,7 @@ function App() {
               />
               {!schoolDataSupported && (
                 <p className="field-note">
-                  {DATA_SOURCE_LABELS[backendMeta?.data_source] || "This data source"} doesn't include school data.
+                  {DATA_SOURCE_LABELS[selectedDataSource] || "This data source"} doesn't include school data.
                 </p>
               )}
             </div>

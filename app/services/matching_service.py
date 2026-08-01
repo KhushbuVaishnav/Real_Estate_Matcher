@@ -142,13 +142,19 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict]) -> li
     return _parse_response_text(response.choices[0].message.content)
 
 
-def score_batch(user_preferences: str, listings_batch: list[dict]) -> list[dict]:
-    if settings.AI_PROVIDER == "openai":
+VALID_AI_PROVIDERS = ("anthropic", "openai")
+
+
+def score_batch(user_preferences: str, listings_batch: list[dict], ai_provider: str = None) -> list[dict]:
+    provider = ai_provider or settings.AI_PROVIDER
+    if provider not in VALID_AI_PROVIDERS:
+        raise ValueError(f"ai_provider must be one of {VALID_AI_PROVIDERS}, got '{provider}'")
+    if provider == "openai":
         return _score_batch_openai(user_preferences, listings_batch)
     return _score_batch_anthropic(user_preferences, listings_batch)
 
 
-def rank_listings(user_preferences: str, listings: list[dict]) -> list[dict]:
+def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str = None) -> list[dict]:
     """Batches, scores, merges, filters by threshold, sorts best-first.
     Synchronous, blocking, no cancellation — kept for the CLI script and
     anything that just wants a single call/response. The API's /match/start
@@ -158,7 +164,7 @@ def rank_listings(user_preferences: str, listings: list[dict]) -> list[dict]:
     scores_by_id = {}
     for i in range(0, len(listings), settings.BATCH_SIZE):
         batch = listings[i:i + settings.BATCH_SIZE]
-        for r in score_batch(user_preferences, batch):
+        for r in score_batch(user_preferences, batch, ai_provider):
             scores_by_id[str(r["mls_id"])] = r  # str() — model may return ids as strings even when source has ints
 
     ranked = []
@@ -190,7 +196,7 @@ _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
 
-def start_match_job(user_preferences: str, listings: list[dict]) -> str:
+def start_match_job(user_preferences: str, listings: list[dict], ai_provider: str = None) -> str:
     job_id = str(uuid.uuid4())
     total_batches = (len(listings) + settings.BATCH_SIZE - 1) // settings.BATCH_SIZE if listings else 0
 
@@ -205,12 +211,12 @@ def start_match_job(user_preferences: str, listings: list[dict]) -> str:
     with _jobs_lock:
         _jobs[job_id] = job
 
-    thread = threading.Thread(target=_run_job, args=(job_id, user_preferences, listings), daemon=True)
+    thread = threading.Thread(target=_run_job, args=(job_id, user_preferences, listings, ai_provider), daemon=True)
     thread.start()
     return job_id
 
 
-def _run_job(job_id: str, user_preferences: str, listings: list[dict]):
+def _run_job(job_id: str, user_preferences: str, listings: list[dict], ai_provider: str = None):
     job = _jobs[job_id]
     cancel_event = job["cancel_event"]
     scores_by_id = {}
@@ -220,7 +226,7 @@ def _run_job(job_id: str, user_preferences: str, listings: list[dict]):
             if cancel_event.is_set():
                 break
             batch = listings[i:i + settings.BATCH_SIZE]
-            for r in score_batch(user_preferences, batch):
+            for r in score_batch(user_preferences, batch, ai_provider):
                 scores_by_id[str(r["mls_id"])] = r
             job["completed_batches"] += 1
 
