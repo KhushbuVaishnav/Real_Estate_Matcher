@@ -89,6 +89,13 @@ Restart `uvicorn` (or let `--reload` pick it up) after changing `.env`.
   `python scripts/generate_listings.py 2000` to regenerate at any size.
   This is the one to use for realistic-scale filter and matching tests.
 
+  **No fixed random seed:** every run of `generate_listings.py` re-rolls
+  *everything* — prices, addresses, beds, stories, descriptions, schools,
+  all of it — not just whatever you meant to change. If you're tracking
+  specific test-case numbers (e.g. "min_price=2M returns 283 listings"),
+  those numbers will drift the next time anyone regenerates the dataset.
+  Re-verify against the current file rather than trusting old numbers.
+
 **Cost/latency note at scale:** AI matching batches `BATCH_SIZE` (default 8)
 listings per API call. At 500+ listings, that's 60+ calls per search — real
 latency and cost, unlike testing against 14 listings. Use hard filters
@@ -97,11 +104,19 @@ exactly like a real production system would — never send an entire
 inventory to an LLM per search. Or use "Browse all (skip AI)" in the
 frontend to test filters alone with zero AI cost.
 
-## School ratings — important honesty note
+## Schools
 
-`app/data/schools.json` contains **illustrative placeholder ratings**, not
-real current data. Before this matters for a real decision, replace with
-actual ratings from greatschools.org or their API — ratings change yearly.
+All school names in this project (`app/data/schools.json`, and the school
+assignments in `realistic_listings.json` and `generated_listings.json`) are
+entirely fictional — invented names like Cedar Ridge Elementary, Warren
+Middle School, and Charter High School. None correspond to real institutions,
+and none of the ratings are real either. Treat all of it as synthetic test
+data only.
+
+School assignment is tied to each listing's (also fictional) neighborhood —
+every listing in a given neighborhood shares the same three schools, similar
+to how real school district boundaries work — rather than assigned randomly
+per listing.
 
 ## Tuning `SCORE_THRESHOLD`
 

@@ -1,76 +1,76 @@
 {
-  "_note": "Illustrative sample data for development/testing. Ratings shown here are placeholders on a 1-10 scale (loosely modeled on GreatSchools-style scoring) and are NOT pulled from a live source. Before using this in anything real, replace with actual current ratings from greatschools.org or the GreatSchools API — school ratings change year to year and this file will go stale.",
+  "_note": "Fully fictional test data. Both the school names and their ratings are invented for this project and do not correspond to any real institution. Ratings are illustrative placeholders on a 1-10 scale.",
 
-  "John Gill Elementary": {
+  "Poplar Elementary": {
     "level": "elementary",
-    "rating": 7,
-    "district": "Redwood City School District",
+    "rating": 9,
+    "district": "Fictional Test District",
     "enrollment": 410
   },
-  "Roy Cloud Elementary": {
+  "Cedar Ridge Elementary": {
     "level": "elementary",
     "rating": 9,
-    "district": "Redwood City School District",
+    "district": "Fictional Test District",
     "enrollment": 520
   },
-  "Roy Cloud School": {
-    "level": "K-8",
-    "rating": 9,
-    "district": "Redwood City School District",
-    "enrollment": 520
-  },
-  "James Flood Elementary": {
+  "Cypress Elementary": {
     "level": "elementary",
-    "rating": 6,
-    "district": "Redwood City School District",
-    "enrollment": 380
-  },
-  "Clifford Elementary": {
-    "level": "elementary",
-    "rating": 8,
-    "district": "Redwood City School District",
+    "rating": 7,
+    "district": "Fictional Test District",
     "enrollment": 440
   },
-  "Adelante Selby Spanish Immersion": {
+  "Douglas Elementary": {
     "level": "elementary",
-    "rating": 6,
-    "district": "Redwood City School District",
-    "enrollment": 460
+    "rating": 7,
+    "district": "Fictional Test District",
+    "enrollment": 400
   },
-  "Hoover Elementary": {
-    "level": "elementary",
-    "rating": 5,
-    "district": "Redwood City School District",
-    "enrollment": 390
-  },
-  "North Star Academy": {
+  "Buckingham Elementary": {
     "level": "elementary",
     "rating": 4,
-    "district": "Redwood City School District",
-    "enrollment": 350
+    "district": "Fictional Test District",
+    "enrollment": 360
   },
-  "Kennedy Middle School": {
-    "level": "middle",
-    "rating": 7,
-    "district": "Redwood City School District",
-    "enrollment": 780
+  "Vera Elementary": {
+    "level": "elementary",
+    "rating": 8,
+    "district": "Fictional Test District",
+    "enrollment": 480
   },
-  "Redwood City 7th & 8th Grade Academy": {
+  "Alma Elementary": {
+    "level": "elementary",
+    "rating": 6,
+    "district": "Fictional Test District",
+    "enrollment": 390
+  },
+  "Grand Middle School": {
     "level": "middle",
-    "rating": 5,
-    "district": "Redwood City School District",
+    "rating": 6,
+    "district": "Fictional Test District",
+    "enrollment": 700
+  },
+  "Warren Middle School": {
+    "level": "middle",
+    "rating": 9,
+    "district": "Fictional Test District",
+    "enrollment": 640
+  },
+  "Selby Middle School": {
+    "level": "middle",
+    "rating": 9,
+    "district": "Fictional Test District",
     "enrollment": 610
   },
-  "Sequoia High School": {
+  "Vine Valley High School": {
     "level": "high",
-    "rating": 7,
-    "district": "Sequoia Union High School District",
-    "enrollment": 2350
+    "rating": 6,
+    "district": "Fictional Test District",
+    "enrollment": 2100
   },
-  "Woodside High School": {
+  "Charter High School": {
     "level": "high",
     "rating": 8,
-    "district": "Sequoia Union High School District",
-    "enrollment": 1980
+    "district": "Fictional Test District",
+    "enrollment": 1950
   }
 }

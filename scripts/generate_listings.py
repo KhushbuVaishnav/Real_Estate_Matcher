@@ -48,12 +48,25 @@ STREET_TYPES = ["Ave", "St", "Rd", "Dr", "Ln", "Ct", "Way", "Pl"]
 SINGLE_STORY_STYLES = ["Ranch", "Cottage", "Bungalow", "Craftsman"]
 TWO_STORY_STYLES = ["Traditional", "Contemporary", "Colonial", "Mid-Century", "Modern Farmhouse"]
 
-SCHOOLS = {
-    "elementary": ["John Gill Elementary", "Roy Cloud Elementary", "James Flood Elementary",
-                   "Clifford Elementary", "Adelante Selby Spanish Immersion", "Hoover Elementary",
-                   "North Star Academy"],
-    "middle": ["Kennedy Middle School", "Roy Cloud School", "Redwood City 7th & 8th Grade Academy"],
-    "high": ["Sequoia High School", "Woodside High School"],
+# Fictional schools, deliberately built from names in the same synthetic
+# street-name pool used for addresses — sounds locally plausible without
+# reusing any real school's actual name. Each neighborhood is mapped to one
+# school cluster so a listing's assigned schools are geographically
+# consistent with its (also fictional) neighborhood, the way a real MLS
+# feed's school assignments would be.
+NEIGHBORHOOD_SCHOOLS = {
+    "Mount Carmel":             {"elementary": "Poplar Elementary",     "middle": "Grand Middle School",    "high": "Vine Valley High School"},
+    "Emerald Hills":            {"elementary": "Cedar Ridge Elementary", "middle": "Warren Middle School",   "high": "Charter High School"},
+    "Central Emerald Hills":    {"elementary": "Cedar Ridge Elementary", "middle": "Warren Middle School",   "high": "Charter High School"},
+    "Woodside Plaza":           {"elementary": "Cypress Elementary",    "middle": "Selby Middle School",     "high": "Charter High School"},
+    "Farm Hill":                {"elementary": "Cypress Elementary",    "middle": "Selby Middle School",     "high": "Charter High School"},
+    "Redwood Oaks":             {"elementary": "Douglas Elementary",    "middle": "Grand Middle School",     "high": "Vine Valley High School"},
+    "Redwood Village":          {"elementary": "Buckingham Elementary", "middle": "Grand Middle School",     "high": "Vine Valley High School"},
+    "North Fair Oaks":          {"elementary": "Buckingham Elementary", "middle": "Grand Middle School",     "high": "Vine Valley High School"},
+    "Redwood Estates":          {"elementary": "Cedar Ridge Elementary", "middle": "Warren Middle School",   "high": "Charter High School"},
+    "Redwood Shores Adjacent":  {"elementary": "Douglas Elementary",    "middle": "Selby Middle School",     "high": "Charter High School"},
+    "Redwood Shores":           {"elementary": "Vera Elementary",       "middle": "Warren Middle School",    "high": "Charter High School"},
+    "Downtown Redwood City":    {"elementary": "Alma Elementary",       "middle": "Selby Middle School",     "high": "Vine Valley High School"},
 }
 
 QUIET_SENTENCES = [
@@ -191,11 +204,7 @@ def generate(count: int) -> list[dict]:
                 "stories": stories,
             },
             "association": {"fee": hoa_fee},
-            "schools": {
-                "elementary": random.choice(SCHOOLS["elementary"]),
-                "middle": random.choice(SCHOOLS["middle"]),
-                "high": random.choice(SCHOOLS["high"]),
-            },
+            "schools": NEIGHBORHOOD_SCHOOLS[neighborhood],
             "remarks": build_description(is_quiet, is_updated, has_office, is_single_story),
             "photos": [],
         }

@@ -31,6 +31,19 @@ mentions condos, HOA costs, or low-maintenance living. Look for things a
 keyword search would miss: implied features, phrasing, tone, lifestyle fit,
 dealbreakers mentioned or conspicuously absent.
 
+When the buyer names multiple distinct requirements (e.g. "walkable to
+Caltrain and a quiet street," or "home office and a pool"), treat each named
+requirement as something that needs to be satisfied on its own — do not
+average them into a single lenient score. A listing satisfying only some of
+several explicitly named requirements should score noticeably lower (well
+below 60, typically 20-40 depending on how many are missing) even if it's a
+strong match on the criteria it does meet. Reserve high scores (70+) for
+listings that genuinely satisfy most or all of what the buyer explicitly
+asked for — a partial match on an explicit multi-part request is not itself
+a good match, even if part of it fits well. If the listing's reason for
+scoring lower is "meets X but not Y," the score should reflect that Y was
+a real, unmet requirement, not just a minor deduction.
+
 Respond with ONLY a JSON array, no other text, in this exact shape:
 [
   {"mls_id": "...", "score": 0-100, "reason": "one sentence, specific, citing what in the listing drove the score"}

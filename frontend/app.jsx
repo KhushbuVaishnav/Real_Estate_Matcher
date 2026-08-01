@@ -155,6 +155,14 @@ function App() {
       .catch(() => setBackendMeta(null)); // silently ignore — header just falls back to a generic label
   }, []);
 
+  // Only "realistic" and "generated" data carry a schools field at all — "live"
+  // (SimplyRETS sandbox) and "sample" listings have none, so the school rating
+  // filter would silently do nothing on them. Disable the controls in that case
+  // instead of letting someone set a value that's quietly ignored.
+  const schoolDataSupported = backendMeta
+    ? backendMeta.data_source === "realistic" || backendMeta.data_source === "generated"
+    : true; // assume supported while still connecting, so nothing flashes disabled-then-enabled
+
   function updateField(key, value) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
@@ -211,8 +219,8 @@ function App() {
       min_beds: filters.minBeds ? Number(filters.minBeds) : null,
       min_baths: filters.minBaths ? Number(filters.minBaths) : null,
       min_sqft: filters.minSqft ? Number(filters.minSqft) : null,
-      min_school_rating: filters.minSchoolRating ? Number(filters.minSchoolRating) : null,
-      strict_school_rating: filters.strictSchoolRating || null,
+      min_school_rating: schoolDataSupported && filters.minSchoolRating ? Number(filters.minSchoolRating) : null,
+      strict_school_rating: schoolDataSupported && filters.strictSchoolRating ? true : null,
       property_types: filters.propertyType !== "any" ? [filters.propertyType] : null,
       max_hoa: filters.maxHoa ? Number(filters.maxHoa) : null,
       min_stories: filters.stories === "2plus" ? 2 : null,
@@ -380,8 +388,14 @@ function App() {
                 max="10"
                 value={filters.minSchoolRating}
                 onChange={(e) => updateField("minSchoolRating", e.target.value)}
-                placeholder="Any — only applies when school data is available"
+                placeholder={schoolDataSupported ? "Any" : "Not available for this data source"}
+                disabled={!schoolDataSupported}
               />
+              {!schoolDataSupported && (
+                <p className="field-note">
+                  {DATA_SOURCE_LABELS[backendMeta?.data_source] || "This data source"} doesn't include school data.
+                </p>
+              )}
             </div>
 
             <div className="field field--full field--checkbox">
@@ -391,6 +405,7 @@ function App() {
                   type="checkbox"
                   checked={filters.strictSchoolRating}
                   onChange={(e) => updateField("strictSchoolRating", e.target.checked)}
+                  disabled={!schoolDataSupported}
                 />
                 Strict (every school must individually meet the minimum, not just the average)
               </label>

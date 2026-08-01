@@ -467,9 +467,26 @@ button {
   color: var(--muted-dim);
 }
 
-.field textarea:disabled {
+.field textarea:disabled,
+.field input:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.checkbox-label input:disabled {
+  cursor: not-allowed;
+}
+
+.checkbox-label:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.field-note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--muted-dim);
+  font-style: italic;
 }
 
 .match-gauge__ticks {
