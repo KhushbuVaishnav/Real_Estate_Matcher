@@ -99,8 +99,8 @@ do with your other filters.
   a real MLS feed's response shape looks like.
   **Nothing about this source is fixed** — it's a third-party demo service,
   and its contents can and do change without any action on our end. We've
-  observed both the total listing count change (65 one day, 45 the next) and
-  the city itself change (originally Redwood City, later Houston). Don't
+  observed the total listing count change (65 one day, 45 the next) for 
+  the city of Houston. In case city could change as we dont own that data, don't
   hardcode an assumed city or count anywhere against this source — check
   what's actually in it first:
   ```bash
