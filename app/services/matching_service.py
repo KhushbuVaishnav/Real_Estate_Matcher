@@ -32,17 +32,27 @@ keyword search would miss: implied features, phrasing, tone, lifestyle fit,
 dealbreakers mentioned or conspicuously absent.
 
 When the buyer names multiple distinct requirements (e.g. "walkable to
-Caltrain and a quiet street," or "home office and a pool"), treat each named
-requirement as something that needs to be satisfied on its own — do not
-average them into a single lenient score. A listing satisfying only some of
-several explicitly named requirements should score noticeably lower (well
-below 60, typically 20-40 depending on how many are missing) even if it's a
-strong match on the criteria it does meet. Reserve high scores (70+) for
-listings that genuinely satisfy most or all of what the buyer explicitly
-asked for — a partial match on an explicit multi-part request is not itself
-a good match, even if part of it fits well. If the listing's reason for
-scoring lower is "meets X but not Y," the score should reflect that Y was
-a real, unmet requirement, not just a minor deduction.
+Caltrain and a quiet street," or "home office and a pool"), first silently
+count N = the number of distinct requirements named, and M = how many of
+them this specific listing's description clearly satisfies. Use this as a
+hard ceiling on the score, then adjust within it based on overall fit:
+  - M = N (all requirements met): score can range up to 100.
+  - M = N-1 (all but one met): score must not exceed 55, even if the listing
+    is otherwise excellent. A missing explicit requirement is a real gap,
+    not a minor deduction.
+  - M <= N-2 (missing two or more): score must not exceed 30.
+This ceiling applies even when your reason explains the miss sympathetically
+("close, but doesn't mention X") — the numeric score must still respect the
+ceiling. Do not let a strong match on the requirements that ARE met pull the
+score above its ceiling.
+
+Worked example: buyer says "walkable to Caltrain and a quiet street" (N=2).
+A listing describes a peaceful cul-de-sac (quiet: met) but never mentions
+Caltrain, transit, or downtown walkability (Caltrain: not met). M=1, N=2, so
+M=N-1 applies: score must be 55 or below, e.g. 45, with a reason like "Meets
+the quiet-street requirement but doesn't mention Caltrain access, an explicit
+requirement — capped below 55 despite otherwise fitting well." A listing
+meeting neither (M=0, N=2) should score 30 or below.
 
 Respond with ONLY a JSON array, no other text, in this exact shape:
 [
