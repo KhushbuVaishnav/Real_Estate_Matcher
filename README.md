@@ -176,6 +176,30 @@ every score, and gives you min/max/average plus counts above 40/50/60/70 —
 set `SCORE_THRESHOLD` in `.env` based on where a real quality gap appears in
 your actual data's distribution, not a number that sounds reasonable.
 
+## Verifying the dataset is still correct: `scripts/verify_test_cases.py`
+
+```bash
+python scripts/verify_test_cases.py                  # hard invariants + keyword snapshot
+python scripts/verify_test_cases.py --update-baseline # after intentionally regenerating data
+python scripts/verify_test_cases.py --with-ai         # + a real AI scoring spot-check
+```
+
+Two different kinds of checks — **if either one fails, the right response is
+different, and it matters:**
+
+- **A hard invariant fails** (e.g. "every condo is single-story") — this
+  means `generate_listings.py`'s own logic broke a guarantee it's supposed
+  to always hold. `--update-baseline` does nothing for this. Go fix the
+  generator's code.
+- **The keyword snapshot fails** (e.g. "quiet: expected 202, got 197") — ask
+  whether you just ran `generate_listings.py` on purpose:
+  - **Yes** → `--update-baseline` is correct; the dataset is supposed to
+    have different keyword frequencies after a regeneration.
+  - **No** → don't run `--update-baseline` reflexively just to clear the
+    failure. Investigate first — this means something changed the data or
+    the generator unexpectedly, which is a real regression, not something to
+    silently accept.
+
 ## Moving to real MLS data
 
 Swap `DATA_SOURCE=live` for a real feed later: SimplyRETS production,
