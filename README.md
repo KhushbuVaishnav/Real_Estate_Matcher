@@ -97,11 +97,12 @@ do with your other filters.
   hundreds), and its `remarks` field is identical boilerplate text on every
   listing — not useful for testing AI matching quality, only for seeing what
   a real MLS feed's response shape looks like.
-  **The listing count isn't fixed** — it's a third-party demo service, and
-  its contents can change without any action on our end. We've observed the
-  total listing count change (65 one day, 45 the next); the city has
-  consistently been Houston. Don't hardcode an assumed count anywhere
-  against this source — check what's actually in it first:
+  **Nothing about this source is fixed** — it's a third-party demo service,
+  and its contents can and do change without any action on our end. We've
+  observed the total listing count change (65 one day, 45 the next) for
+  the city of Houston. In case city could change as we don't own that data, don't
+  hardcode an assumed city or count anywhere against this source — check
+  what's actually in it first:
   ```bash
   curl -u simplyrets:simplyrets "https://api.simplyrets.com/properties?limit=5" \
     | python3 -c "import json,sys; d=json.load(sys.stdin); [print(l['address']['city']) for l in d]"

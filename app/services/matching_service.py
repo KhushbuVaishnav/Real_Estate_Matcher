@@ -21,43 +21,39 @@ SYSTEM_PROMPT = """You are a real estate matching assistant. You will be given:
    school_ratings — a 1-10 rating for the assigned elementary/middle/high
    school, when available.
 
-For EACH listing, score how well it matches what the buyer is looking for.
-Weigh the free-text description primarily (since specs like beds/baths/price
-were already filtered upstream), but factor in structured fields when
-relevant: school_ratings when the buyer mentions schools/kids/family; stories
-and description details like "no stairs," "main-floor bedroom," or
-"walk-in shower" when the buyer mentions accessibility, elderly family
-members, or single-level living; hoa_fee and property_type when the buyer
-mentions condos, HOA costs, or low-maintenance living. Look for things a
-keyword search would miss: implied features, phrasing, tone, lifestyle fit,
-dealbreakers mentioned or conspicuously absent.
+For EACH listing, do NOT compute a numeric score yourself — the calling
+system computes that deterministically from the requirements breakdown you
+provide below. Your job is only to identify requirements and judge each one
+honestly.
 
-When the buyer names multiple distinct requirements (e.g. "walkable to
-Caltrain and a quiet street," or "home office and a pool"), first silently
-count N = the number of distinct requirements named, and M = how many of
-them this specific listing's description clearly satisfies. Use this as a
-hard ceiling on the score, then adjust within it based on overall fit:
-  - M = N (all requirements met): score can range up to 100.
-  - M = N-1 (all but one met): score must not exceed 55, even if the listing
-    is otherwise excellent. A missing explicit requirement is a real gap,
-    not a minor deduction.
-  - M <= N-2 (missing two or more): score must not exceed 30.
-This ceiling applies even when your reason explains the miss sympathetically
-("close, but doesn't mention X") — the numeric score must still respect the
-ceiling. Do not let a strong match on the requirements that ARE met pull the
-score above its ceiling.
+Step 1 — break the buyer's preferences into distinct, named requirements.
+"Quiet cul-de-sac, near Caltrain, and away from the highway" is THREE
+requirements, not one or two — do not merge related-sounding ones together.
+If the buyer's text is too vague to break into multiple distinct asks (e.g.
+just "nice house" or "any"), use a single requirement summarizing it.
 
-Worked example: buyer says "walkable to Caltrain and a quiet street" (N=2).
-A listing describes a peaceful cul-de-sac (quiet: met) but never mentions
-Caltrain, transit, or downtown walkability (Caltrain: not met). M=1, N=2, so
-M=N-1 applies: score must be 55 or below, e.g. 45, with a reason like "Meets
-the quiet-street requirement but doesn't mention Caltrain access, an explicit
-requirement — capped below 55 despite otherwise fitting well." A listing
-meeting neither (M=0, N=2) should score 30 or below.
+Step 2 — for each requirement, judge whether THIS listing's description (and
+structured fields — school_ratings when the buyer mentions schools/kids/
+family; stories and phrases like "no stairs" or "walk-in shower" when they
+mention accessibility; hoa_fee/property_type when they mention condos or
+low-maintenance living) clearly supports it: true or false. Be honest — mark
+true only when the listing's actual text/data supports it, not because it
+seems plausible. If a requirement is never mentioned or contradicted, mark it
+false — do not give credit for silence.
+
+Step 3 — write one specific sentence explaining the requirements breakdown,
+referencing what was met and what wasn't.
 
 Respond with ONLY a JSON array, no other text, in this exact shape:
 [
-  {"mls_id": "...", "score": 0-100, "reason": "one sentence, specific, citing what in the listing drove the score"}
+  {
+    "mls_id": "...",
+    "requirements": [
+      {"text": "short label for requirement 1", "met": true},
+      {"text": "short label for requirement 2", "met": false}
+    ],
+    "reason": "one sentence, specific, citing what in the listing supported or failed each requirement"
+  }
 ]
 """
 
@@ -229,13 +225,53 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict], on_re
     return _parse_response_text(response.choices[0].message.content)
 
 
+def _compute_deterministic_scores(raw_items: list[dict]) -> list[dict]:
+    """
+    Converts the model's per-listing requirements-met breakdown into an
+    actual 0-100 score computed by OUR code, not trusted directly from the
+    model.
+
+    Why: earlier versions asked the model to compute its own score under a
+    ceiling rule ("cap at 55 if missing 1 of N requirements"). Testing
+    repeatedly showed the model's REASON TEXT would correctly identify a
+    missed requirement ("doesn't mention Caltrain") while the SCORE ignored
+    its own stated ceiling and came back 100 anyway — the model wasn't
+    reliably doing that arithmetic itself. Asking it to output simple
+    per-requirement booleans (a much more constrained, reliable judgment)
+    and doing the actual score = round(100 * met/total) math in Python
+    removes that failure mode entirely, since the model can no longer
+    "forget" to apply the cap — there's no cap for it to apply or skip.
+    """
+    results = []
+    for item in raw_items:
+        reqs = item.get("requirements", [])
+        if reqs:
+            total = len(reqs)
+            met = sum(1 for r in reqs if r.get("met"))
+            score = round(100 * met / total)
+        else:
+            # Model didn't break preferences into requirements at all
+            # (shouldn't normally happen given the prompt, but don't crash
+            # if it does) — neutral fallback rather than silently dropping
+            # this listing from results entirely.
+            score = 50
+        results.append({
+            "mls_id": item.get("mls_id"),
+            "score": score,
+            "reason": item.get("reason", ""),
+        })
+    return results
+
+
 def score_batch(user_preferences: str, listings_batch: list[dict], ai_provider: str = None, on_retry=None) -> list[dict]:
     provider = ai_provider or settings.AI_PROVIDER
     if provider not in VALID_AI_PROVIDERS:
         raise ValueError(f"ai_provider must be one of {VALID_AI_PROVIDERS}, got '{provider}'")
     if provider == "openai":
-        return _score_batch_openai(user_preferences, listings_batch, on_retry)
-    return _score_batch_anthropic(user_preferences, listings_batch, on_retry)
+        raw = _score_batch_openai(user_preferences, listings_batch, on_retry)
+    else:
+        raw = _score_batch_anthropic(user_preferences, listings_batch, on_retry)
+    return _compute_deterministic_scores(raw)
 
 
 def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str = None) -> list[dict]:
