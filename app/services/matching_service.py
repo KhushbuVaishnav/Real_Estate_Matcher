@@ -253,12 +253,17 @@ def _compute_deterministic_scores(raw_items: list[dict]) -> list[dict]:
             # Model didn't break preferences into requirements at all
             # (shouldn't normally happen given the prompt, but don't crash
             # if it does) — neutral fallback rather than silently dropping
-            # this listing from results entirely.
+            # this listing from results entirely. total=0 signals "unknown"
+            # to callers doing count-based filtering below.
             score = 50
+            total = 0
+            met = 0
         results.append({
             "mls_id": item.get("mls_id"),
             "score": score,
             "reason": item.get("reason", ""),
+            "requirements_total": total,
+            "requirements_met": met,
         })
     return results
 
@@ -285,6 +290,13 @@ def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str 
     rather than one at a time — for a large search this is the single
     biggest lever on total wall-clock time, since network/API latency per
     batch otherwise adds up linearly.
+
+    Every ranked listing carries requirements_total/requirements_met so the
+    frontend can show "2/3 requirements met" transparently and separate full
+    matches from partial ones — deliberately NOT a user-configurable filter
+    (asking someone to pre-declare which of their own stated requirements
+    they're willing to have ignored, before seeing any results, doesn't
+    make sense as a control).
     """
     batches = [listings[i:i + settings.BATCH_SIZE] for i in range(0, len(listings), settings.BATCH_SIZE)]
     scores_by_id = {}
@@ -300,8 +312,15 @@ def rank_listings(user_preferences: str, listings: list[dict], ai_provider: str 
         result = scores_by_id.get(str(listing["mls_id"]))
         if not result:
             continue
-        if result["score"] >= settings.SCORE_THRESHOLD:
-            ranked.append({**listing, "match_score": result["score"], "match_reason": result["reason"]})
+        if result["score"] < settings.SCORE_THRESHOLD:
+            continue
+        ranked.append({
+            **listing,
+            "match_score": result["score"],
+            "match_reason": result["reason"],
+            "requirements_total": result.get("requirements_total", 0),
+            "requirements_met": result.get("requirements_met", 0),
+        })
 
     ranked.sort(key=lambda x: x["match_score"], reverse=True)
     return ranked
@@ -396,8 +415,15 @@ def _run_job(job_id: str, user_preferences: str, listings: list[dict], ai_provid
             result = scores_by_id.get(str(listing["mls_id"]))
             if not result:
                 continue
-            if result["score"] >= settings.SCORE_THRESHOLD:
-                ranked.append({**listing, "match_score": result["score"], "match_reason": result["reason"]})
+            if result["score"] < settings.SCORE_THRESHOLD:
+                continue
+            ranked.append({
+                **listing,
+                "match_score": result["score"],
+                "match_reason": result["reason"],
+                "requirements_total": result.get("requirements_total", 0),
+                "requirements_met": result.get("requirements_met", 0),
+            })
         ranked.sort(key=lambda x: x["match_score"], reverse=True)
 
         job["results"] = ranked

@@ -104,7 +104,14 @@ function ResultCard({ listing }) {
 
         {hasMatchData && (
           <div className="result-card__reason">
-            <strong>Why it matches</strong>
+            <strong>
+              Why it matches
+              {listing.requirements_total > 0 && (
+                <span className="requirements-badge">
+                  {" "}— {listing.requirements_met}/{listing.requirements_total} requirements met
+                </span>
+              )}
+            </strong>
             {listing.match_reason}
           </div>
         )}
@@ -266,7 +273,11 @@ function App() {
       const startRes = await fetch(`${API_BASE}/match/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filters: filterBody, preferences: preferences.trim(), ai_provider: selectedAiProvider }),
+        body: JSON.stringify({
+          filters: filterBody,
+          preferences: preferences.trim(),
+          ai_provider: selectedAiProvider,
+        }),
         signal: controller.signal,
       });
       if (!startRes.ok) {
@@ -600,13 +611,53 @@ function App() {
             </div>
           )}
 
-          {results.length > 0 && (
-            <div className="result-grid">
-              {results.map((listing) => (
-                <ResultCard key={listing.mls_id} listing={listing} />
-              ))}
-            </div>
-          )}
+          {results.length > 0 && (() => {
+            // Browse-all results have no requirements/score data at all —
+            // just show them as one flat list in that case.
+            const hasRequirementData = !skipAI && results.some((l) => typeof l.requirements_total === "number");
+            if (!hasRequirementData) {
+              return (
+                <div className="result-grid">
+                  {results.map((listing) => (
+                    <ResultCard key={listing.mls_id} listing={listing} />
+                  ))}
+                </div>
+              );
+            }
+
+            // Split into full vs. partial matches automatically — this is
+            // deliberately NOT a user-configurable tolerance setting. Asking
+            // someone to pre-declare "it's fine if you ignore requirement X"
+            // before seeing any results doesn't make sense; showing both
+            // tiers transparently and letting them judge does.
+            const fullMatches = results.filter((l) => l.requirements_total === 0 || l.requirements_met === l.requirements_total);
+            const partialMatches = results.filter((l) => l.requirements_total > 0 && l.requirements_met < l.requirements_total);
+
+            return (
+              <React.Fragment>
+                {fullMatches.length > 0 && (
+                  <React.Fragment>
+                    <h3 className="results-subheading">Full matches — every requirement met ({fullMatches.length})</h3>
+                    <div className="result-grid">
+                      {fullMatches.map((listing) => (
+                        <ResultCard key={listing.mls_id} listing={listing} />
+                      ))}
+                    </div>
+                  </React.Fragment>
+                )}
+                {partialMatches.length > 0 && (
+                  <React.Fragment>
+                    <h3 className="results-subheading results-subheading--partial">Partial matches — missing at least one requirement ({partialMatches.length})</h3>
+                    <div className="result-grid">
+                      {partialMatches.map((listing) => (
+                        <ResultCard key={listing.mls_id} listing={listing} />
+                      ))}
+                    </div>
+                  </React.Fragment>
+                )}
+              </React.Fragment>
+            );
+          })()}
         </section>
       </div>
     </React.Fragment>
