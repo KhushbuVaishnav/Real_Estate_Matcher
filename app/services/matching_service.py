@@ -147,6 +147,12 @@ def _log_rate_limit_headers(provider: str, headers) -> None:
 def _score_batch_anthropic(user_preferences: str, listings_batch: list[dict], on_retry=None) -> list[dict]:
     import anthropic
 
+    if not settings.ANTHROPIC_API_KEY:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY is not set — required to use Claude as the AI provider. "
+            "Add it to .env, or select a different provider."
+        )
+
     client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     user_message = f"Buyer wants: {user_preferences}\n\nListings:\n{json.dumps(_build_listing_payload(listings_batch), indent=2)}"
 
@@ -188,6 +194,12 @@ def _score_batch_anthropic(user_preferences: str, listings_batch: list[dict], on
 def _score_batch_openai(user_preferences: str, listings_batch: list[dict], on_retry=None) -> list[dict]:
     import openai
     from openai import OpenAI, AuthenticationError, NotFoundError, APIStatusError
+
+    if not settings.OPENAI_API_KEY:
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set — required to use OpenAI as the AI provider. "
+            "Add it to .env, or select a different provider."
+        )
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
     user_message = f"Buyer wants: {user_preferences}\n\nListings:\n{json.dumps(_build_listing_payload(listings_batch), indent=2)}"
@@ -428,7 +440,18 @@ def _run_job(job_id: str, user_preferences: str, listings: list[dict], ai_provid
 
         job["results"] = ranked
         job["status"] = "cancelled" if cancel_event.is_set() else "done"
-    except RuntimeError as e:
+    except Exception as e:
+        # Deliberately broad, not just RuntimeError — this is the last line
+        # of defense for a background thread. Anything raised in here
+        # (a missing API key, an SDK-specific exception type we didn't
+        # anticipate, whatever) MUST still flip the job to "error" status.
+        # Without this, an exception type we didn't explicitly catch would
+        # silently kill the thread while leaving job["status"] stuck at
+        # "running" forever — the frontend would then poll an endpoint that
+        # never changes, spinning indefinitely with no error shown at all.
+        # (This is exactly what happened before this fix: a missing
+        # OPENAI_API_KEY raised an OpenAI-SDK-specific exception, not a
+        # RuntimeError, so it slipped past the narrower except clause here.)
         job["status"] = "error"
         job["error"] = str(e)
 

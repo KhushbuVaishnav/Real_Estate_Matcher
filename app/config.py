@@ -83,10 +83,26 @@ class Settings:
         if self.AI_PROVIDER not in VALID_AI_PROVIDERS:
             raise ValueError(f"AI_PROVIDER must be one of {VALID_AI_PROVIDERS}, got '{self.AI_PROVIDER}'")
 
+        # Hard failure: the DEFAULT provider must have its key set, since
+        # every request falls back to this unless the frontend's "Matched
+        # by" dropdown explicitly overrides it.
         if self.AI_PROVIDER == "anthropic" and not self.ANTHROPIC_API_KEY:
             raise ValueError("AI_PROVIDER is 'anthropic' but ANTHROPIC_API_KEY is not set in .env")
         if self.AI_PROVIDER == "openai" and not self.OPENAI_API_KEY:
             raise ValueError("AI_PROVIDER is 'openai' but OPENAI_API_KEY is not set in .env")
+
+        # Soft warning, not a hard failure: the frontend's dropdown lets
+        # someone pick EITHER provider for a single search, regardless of
+        # which one is the .env default. If the non-default provider's key
+        # is missing, that's fine if you never plan to use it — but you
+        # should know now, not discover it only when a search using that
+        # dropdown option fails with an auth error mid-request.
+        if not self.ANTHROPIC_API_KEY:
+            print("[config warning] ANTHROPIC_API_KEY is not set — selecting 'Claude' in the "
+                  "frontend's 'Matched by' dropdown will fail until it's added to .env.")
+        if not self.OPENAI_API_KEY:
+            print("[config warning] OPENAI_API_KEY is not set — selecting 'OpenAI' in the "
+                  "frontend's 'Matched by' dropdown will fail until it's added to .env.")
 
 
 settings = Settings()

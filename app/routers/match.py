@@ -66,6 +66,11 @@ def match_listings(request: MatchRequest):
         ranked = matching_service.rank_listings(request.preferences, listings, request.ai_provider)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        # Defense in depth, same reasoning as _run_job's broad except: don't
+        # let an unanticipated exception type turn into a generic, unhelpful
+        # 500 — surface it as a clear 502 with the real message instead.
+        raise HTTPException(status_code=502, detail=f"AI matching failed: {e}")
 
     return {"count": len(ranked), "matches": ranked}
 

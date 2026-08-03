@@ -156,7 +156,8 @@ def run_ai_spotcheck():
 
         print(f"  {len(ranked)} listings passed SCORE_THRESHOLD={settings.SCORE_THRESHOLD}")
         for l in ranked[:3]:
-            print(f"    [{l['match_score']}] {l['address']} — {l['match_reason'][:90]}")
+            req_info = f" ({l['requirements_met']}/{l['requirements_total']} requirements met)" if l.get("requirements_total") else ""
+            print(f"    [{l['match_score']}]{req_info} {l['address']} — {l['match_reason'][:90]}")
 
 
 if __name__ == "__main__":
