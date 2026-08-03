@@ -192,30 +192,130 @@ def run_frequency_snapshot_test(update_baseline: bool):
 # Tier 3 — real AI scoring spot-check (needs a real API key, costs real usage)
 # ---------------------------------------------------------------------------
 
-def run_ai_spotcheck():
-    section("TIER 3: AI scoring spot-check (real API calls — review output manually)")
-    from app.services.matching_service import rank_listings
+# ---------------------------------------------------------------------------
+# Tier 3 — AI accuracy regression test.
+#
+# Uses app/data/realistic_listings.json specifically (NOT whatever
+# DATA_SOURCE is set to) — it's a small, fixed, hand-written 14-listing
+# dataset that never changes content on its own, unlike `generated`. That's
+# what makes real ground-truth assertions possible: every expected answer
+# below was verified by reading each listing's actual remarks text directly
+# (see the classification comments), not guessed at.
+#
+# This mirrors real app usage — hard filters narrow the pool first, THEN AI
+# scores what's left — and gives a genuine regression test: swap
+# ANTHROPIC_MODEL/OPENAI_MODEL, change TEMPERATURE, or edit the system
+# prompt, and if a model starts misclassifying an unambiguous listing (e.g.
+# calling 1287 Woodside Rd "quiet" when its remarks explicitly say "busy
+# arterial street"), an assertion here fails — a real, meaningful accuracy
+# signal, not "did the pipeline run without crashing."
+# ---------------------------------------------------------------------------
 
-    test_cases = [
-        "quiet street, updated kitchen, home office, pool",
-        "single-level home, no stairs, walk-in shower, small easy-care yard",
-        "walkable to Caltrain and a quiet street",
-    ]
+# Ground truth, hand-verified against each listing's actual remarks text in
+# app/data/realistic_listings.json. Listings not listed for a given
+# dimension are deliberately excluded from that dimension's assertions
+# because their remarks are genuinely ambiguous on that specific point (e.g.
+# 1500 Hudson St mentions "some street noise" but never calls itself
+# "quiet" or "busy" outright) — asserting on an ambiguous case would be
+# testing our own guess, not the model's accuracy.
 
-    all_listings = [normalize_listing(r) for r in fetch_listings(HardFilters())]
+QUIET_TRUE = {2001001, 2001002, 2001004, 2001006, 2001007, 2001008, 2001010, 2001011, 2001012, 2001013}
+QUIET_FALSE = {2001003, 2001009}
+# excluded (ambiguous): 2001005 (Fair Oaks — "some road noise", softer than "busy"), 2001014 (Hudson — downtown foot-traffic noise, not framed as busy/quiet)
 
-    for prefs in test_cases:
-        print(f"\n--- Preferences: \"{prefs}\" ---")
-        try:
-            ranked = rank_listings(prefs, all_listings)
-        except RuntimeError as e:
-            print(f"  ERROR: {e}")
-            continue
+OFFICE_TRUE = {2001001, 2001002, 2001004, 2001006, 2001007, 2001008, 2001010, 2001011, 2001013}
+OFFICE_FALSE = {2001003, 2001005, 2001009, 2001012, 2001014}
 
-        print(f"  {len(ranked)} listings passed SCORE_THRESHOLD={settings.SCORE_THRESHOLD}")
-        for l in ranked[:3]:
-            req_info = f" ({l['requirements_met']}/{l['requirements_total']} requirements met)" if l.get("requirements_total") else ""
-            print(f"    [{l['match_score']}]{req_info} {l['address']} — {l['match_reason'][:90]}")
+CALTRAIN_TRUE = {2001014}
+CALTRAIN_FALSE = {2001001, 2001002, 2001003, 2001004, 2001005, 2001006, 2001007, 2001008, 2001009, 2001010, 2001011, 2001012, 2001013}
+
+
+def _fetch_all_scores(preferences: str, listings: list[dict]) -> dict:
+    """Calls score_batch directly (not rank_listings) so we get every
+    listing's raw score, bypassing SCORE_THRESHOLD — we need to check
+    listings that SHOULD score low just as much as ones that should score
+    high, and a threshold-filtered result set would simply omit the low
+    scorers entirely."""
+    from app.services.matching_service import score_batch
+
+    scores_by_id = {}
+    for i in range(0, len(listings), settings.BATCH_SIZE):
+        batch = listings[i:i + settings.BATCH_SIZE]
+        for r in score_batch(preferences, batch):
+            scores_by_id[int(r["mls_id"])] = r
+    return scores_by_id
+
+
+def _assert_dimension(label, preferences, listings, expect_true, expect_false, failures):
+    print(f"\n--- \"{preferences}\" ---")
+    scores = _fetch_all_scores(preferences, listings)
+
+    for mls_id in sorted(expect_true):
+        r = scores.get(mls_id)
+        ok = r is not None and r["score"] == 100
+        status = "PASS" if ok else "FAIL"
+        if not ok:
+            failures.append(f"{label}: mls_id {mls_id} expected score=100, got {r['score'] if r else 'missing'}")
+        print(f"  [{status}] {mls_id} expected MET     — got score {r['score'] if r else '?'} — {(r or {}).get('reason', '')}")
+
+    for mls_id in sorted(expect_false):
+        r = scores.get(mls_id)
+        ok = r is not None and r["score"] == 0
+        status = "PASS" if ok else "FAIL"
+        if not ok:
+            failures.append(f"{label}: mls_id {mls_id} expected score=0, got {r['score'] if r else 'missing'}")
+        print(f"  [{status}] {mls_id} expected NOT MET — got score {r['score'] if r else '?'} — {(r or {}).get('reason', '')}")
+
+
+def run_ai_accuracy_test():
+    section("TIER 3: AI accuracy regression test (real API calls, fixed ground-truth dataset)")
+    failures = []
+
+    # Mirrors real app usage: hard filters narrow the pool BEFORE AI scoring.
+    # cities=["Redwood City"] is a genuine filter (not a no-op skipped for
+    # convenience) — it just happens that all 14 realistic listings already
+    # satisfy it, so nothing is stripped here. Always uses the fixed
+    # `realistic` dataset regardless of DATA_SOURCE, since ground-truth
+    # assertions require data that never silently changes.
+    filters = HardFilters(cities=["Redwood City"])
+    listings = [normalize_listing(r) for r in fetch_listings(filters, data_source="realistic")]
+    print(f"Testing against {len(listings)} fixed, hand-verified listings (app/data/realistic_listings.json).")
+
+    _assert_dimension("quiet", "quiet street", listings, QUIET_TRUE, QUIET_FALSE, failures)
+    _assert_dimension("office", "a home office", listings, OFFICE_TRUE, OFFICE_FALSE, failures)
+    _assert_dimension("caltrain", "walkable to Caltrain", listings, CALTRAIN_TRUE, CALTRAIN_FALSE, failures)
+
+    # Combined two-requirement case, testing both classification accuracy
+    # AND the deterministic met/total scoring math together. Excludes the
+    # two ambiguous-on-quiet listings (Fair Oaks, Hudson) from this specific
+    # assertion, same reasoning as the single-dimension quiet test above.
+    quiet_and_office = QUIET_TRUE & OFFICE_TRUE       # both true -> expect 100
+    quiet_only = QUIET_TRUE & OFFICE_FALSE            # quiet met, office not -> expect 50
+    neither = QUIET_FALSE & OFFICE_FALSE              # neither met -> expect 0
+
+    print(f"\n--- \"quiet street and a home office\" (2 requirements) ---")
+    scores = _fetch_all_scores("quiet street and a home office", listings)
+    for mls_id in sorted(quiet_and_office):
+        r = scores.get(mls_id)
+        ok = r is not None and r["score"] == 100
+        if not ok:
+            failures.append(f"quiet+office: mls_id {mls_id} expected score=100 (2/2 met), got {r['score'] if r else 'missing'}")
+        print(f"  [{'PASS' if ok else 'FAIL'}] {mls_id} expected 2/2 met (100) — got {r['score'] if r else '?'}")
+    for mls_id in sorted(quiet_only):
+        r = scores.get(mls_id)
+        ok = r is not None and r["score"] == 50
+        if not ok:
+            failures.append(f"quiet+office: mls_id {mls_id} expected score=50 (1/2 met), got {r['score'] if r else 'missing'}")
+        print(f"  [{'PASS' if ok else 'FAIL'}] {mls_id} expected 1/2 met (50)  — got {r['score'] if r else '?'}")
+    for mls_id in sorted(neither):
+        r = scores.get(mls_id)
+        ok = r is not None and r["score"] == 0
+        if not ok:
+            failures.append(f"quiet+office: mls_id {mls_id} expected score=0 (0/2 met), got {r['score'] if r else 'missing'}")
+        print(f"  [{'PASS' if ok else 'FAIL'}] {mls_id} expected 0/2 met (0)   — got {r['score'] if r else '?'}")
+
+    print(f"\n{len(failures)} accuracy failure(s)." if failures else "\nAll accuracy assertions passed.")
+    return failures
 
 
 if __name__ == "__main__":
@@ -223,9 +323,10 @@ if __name__ == "__main__":
     failures += run_frequency_snapshot_test(update_baseline="--update-baseline" in sys.argv)
 
     if "--with-ai" in sys.argv:
-        run_ai_spotcheck()
+        failures += run_ai_accuracy_test()
     else:
-        print("\n(Skipped AI scoring spot-check — run with --with-ai to include it. "
-              "This makes real API calls and uses real usage/cost.)")
+        print("\n(Skipped AI accuracy test — run with --with-ai to include it. "
+              "This makes real API calls and uses real usage/cost, but is cheap: "
+              "only 14 fixed listings, ~2 batches per test case.)")
 
     sys.exit(1 if failures else 0)

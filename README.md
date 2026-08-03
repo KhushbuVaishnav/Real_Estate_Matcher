@@ -23,6 +23,7 @@ real-estate-matcher/
 ├── scripts/
 │   ├── generate_listings.py   # Regenerate the large synthetic dataset
 │   ├── analyze_scores.py      # See real AI score distributions (for tuning SCORE_THRESHOLD)
+│   ├── verify_test_cases.py   # Hard invariants + keyword snapshot + AI accuracy regression test
 │   └── run_cli.py             # Standalone pipeline run, no API server needed
 ├── frontend/                  # Dependency-free React UI (React+Babel via CDN, no build step)
 ├── .env.example                # Copy to .env and fill in
@@ -112,6 +113,8 @@ do with your other filters.
 - **`realistic`** — 14 hand-written Redwood City listings with real pricing,
   varied descriptions, school assignments, HOA fees, and a mix of single/
   multi-story and condo/single-family — good for demoing specific scenarios.
+  Also the dataset `scripts/verify_test_cases.py` uses for its AI accuracy
+  regression test, specifically because it's small and fixed (see below).
 - **`generated`** — large (500+ by default) dataset combining real
   neighborhoods with randomized-but-meaningful description templates. Run
   `python scripts/generate_listings.py 2000` to regenerate at any size.
@@ -149,7 +152,9 @@ frontend to test filters alone with zero AI cost.
 - **`ANTHROPIC_MODEL` / `OPENAI_MODEL`** — swap to a smaller/faster tier
   (e.g. a Haiku-class Anthropic model) for quicker per-call responses, at
   some cost to reasoning depth. Worth A/B testing quality with
-  `scripts/analyze_scores.py` before committing to a smaller model.
+  `scripts/analyze_scores.py` before committing to a smaller model. See
+  `scripts/verify_test_cases.py` below for a way to catch a model swap that
+  actually makes accuracy worse, not just faster.
 
 ## Schools
 
@@ -176,16 +181,16 @@ every score, and gives you min/max/average plus counts above 40/50/60/70 —
 set `SCORE_THRESHOLD` in `.env` based on where a real quality gap appears in
 your actual data's distribution, not a number that sounds reasonable.
 
-## Verifying the dataset is still correct: `scripts/verify_test_cases.py`
+## Verifying the dataset and AI accuracy: `scripts/verify_test_cases.py`
 
 ```bash
 python scripts/verify_test_cases.py                  # hard invariants + keyword snapshot
 python scripts/verify_test_cases.py --update-baseline # after intentionally regenerating data
-python scripts/verify_test_cases.py --with-ai         # + a real AI scoring spot-check
+python scripts/verify_test_cases.py --with-ai         # + a real AI accuracy regression test
 ```
 
-Two different kinds of checks — **if either one fails, the right response is
-different, and it matters:**
+Three different kinds of checks — **if one fails, the right response is
+different depending on which, and it matters:**
 
 - **A hard invariant fails** (e.g. "every condo is single-story") — this
   means `generate_listings.py`'s own logic broke a guarantee it's supposed
@@ -199,6 +204,19 @@ different, and it matters:**
     failure. Investigate first — this means something changed the data or
     the generator unexpectedly, which is a real regression, not something to
     silently accept.
+- **The `--with-ai` accuracy test fails** — this is a real regression test,
+  not a spot-check: it runs against the small, fixed `realistic` dataset
+  (never `DATA_SOURCE`'s current value) and asserts specific listings score
+  exactly what they should, based on ground truth hand-verified by reading
+  each listing's actual remarks text (e.g. 1287 Woodside Rd explicitly says
+  "busy arterial street," so it must score 0 for "quiet street"). A failure
+  here means the AI is actually misclassifying something — a real signal to
+  use after changing `ANTHROPIC_MODEL`/`OPENAI_MODEL`, `TEMPERATURE`, or the
+  system prompt, to catch an accuracy regression rather than just a vibe
+  check. There's no baseline to update here — a failure is either a genuine
+  model/prompt regression to fix, or (rarely) a sign the ground truth
+  assertions themselves need revisiting if `realistic_listings.json` is
+  ever intentionally edited.
 
 ## Moving to real MLS data
 
