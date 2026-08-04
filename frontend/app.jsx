@@ -3,6 +3,12 @@ const { useState, useRef, useEffect } = React;
 // Point this at wherever your FastAPI backend is running.
 const API_BASE = "http://127.0.0.1:8000";
 
+// Empty form input -> null (not sent as a filter), otherwise -> Number.
+// Used repeatedly below instead of repeating "value ? Number(value) : null" per field.
+function numOrNull(value) {
+  return value ? Number(value) : null;
+}
+
 const DATA_SOURCE_LABELS = {
   live: "SimplyRETS Sandbox",
   sample: "Sample Data",
@@ -233,15 +239,15 @@ function App() {
 
     const filterBody = {
       cities: filters.cities ? filters.cities.split(",").map((c) => c.trim()).filter(Boolean) : null,
-      min_price: filters.minPrice ? Number(filters.minPrice) : null,
-      max_price: filters.maxPrice ? Number(filters.maxPrice) : null,
-      min_beds: filters.minBeds ? Number(filters.minBeds) : null,
-      min_baths: filters.minBaths ? Number(filters.minBaths) : null,
-      min_sqft: filters.minSqft ? Number(filters.minSqft) : null,
-      min_school_rating: schoolDataSupported && filters.minSchoolRating ? Number(filters.minSchoolRating) : null,
+      min_price: numOrNull(filters.minPrice),
+      max_price: numOrNull(filters.maxPrice),
+      min_beds: numOrNull(filters.minBeds),
+      min_baths: numOrNull(filters.minBaths),
+      min_sqft: numOrNull(filters.minSqft),
+      min_school_rating: schoolDataSupported ? numOrNull(filters.minSchoolRating) : null,
       strict_school_rating: schoolDataSupported && filters.strictSchoolRating ? true : null,
       property_types: filters.propertyType !== "any" ? [filters.propertyType] : null,
-      max_hoa: filters.maxHoa ? Number(filters.maxHoa) : null,
+      max_hoa: numOrNull(filters.maxHoa),
       min_stories: filters.stories === "2plus" ? 2 : null,
       max_stories: filters.stories === "1" ? 1 : null,
       exclude_styles: filters.excludeRanch ? ["Ranch"] : null,

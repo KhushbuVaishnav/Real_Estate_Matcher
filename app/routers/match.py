@@ -21,31 +21,15 @@ from fastapi import APIRouter, HTTPException
 
 from app.models import MatchRequest
 from app.services.listings_service import (
-    HardFilters, fetch_listings, normalize_listing, filter_by_school_rating,
+    build_hard_filters, fetch_listings, normalize_listing, filter_by_school_rating,
 )
 from app.services import matching_service
 
 router = APIRouter()
 
 
-def _build_filters(request: MatchRequest) -> HardFilters:
-    return HardFilters(
-        min_price=request.filters.min_price,
-        max_price=request.filters.max_price,
-        min_beds=request.filters.min_beds,
-        min_baths=request.filters.min_baths,
-        min_sqft=request.filters.min_sqft,
-        cities=request.filters.cities,
-        property_types=request.filters.property_types,
-        max_hoa=request.filters.max_hoa,
-        min_stories=request.filters.min_stories,
-        max_stories=request.filters.max_stories,
-        exclude_styles=request.filters.exclude_styles,
-    )
-
-
 def _get_filtered_listings(request: MatchRequest) -> list[dict]:
-    filters = _build_filters(request)
+    filters = build_hard_filters(request.filters)
     try:
         raw = fetch_listings(filters, data_source=request.filters.data_source)
     except Exception as e:

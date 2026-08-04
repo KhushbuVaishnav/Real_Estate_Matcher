@@ -31,7 +31,23 @@ class HardFilters:
     exclude_styles: Optional[list] = None        # e.g. ["Ranch"]
 
 
-
+def build_hard_filters(query) -> HardFilters:
+    """Builds a HardFilters from a ListingQuery (or anything shaped like one —
+    MatchRequest.filters IS a ListingQuery). Shared by both routers instead
+    of each duplicating this field-by-field mapping separately."""
+    return HardFilters(
+        min_price=query.min_price,
+        max_price=query.max_price,
+        min_beds=query.min_beds,
+        min_baths=query.min_baths,
+        min_sqft=query.min_sqft,
+        cities=query.cities,
+        property_types=query.property_types,
+        max_hoa=query.max_hoa,
+        min_stories=query.min_stories,
+        max_stories=query.max_stories,
+        exclude_styles=query.exclude_styles,
+    )
 
 def fetch_listings(filters: HardFilters, limit: int = None, data_source: str = None) -> list[dict]:
     """
