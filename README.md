@@ -150,11 +150,17 @@ frontend to test filters alone with zero AI cost.
   new batches get submitted once cancelled, but whichever are already in
   flight are allowed to finish rather than abandoned mid-request.
 - **`ANTHROPIC_MODEL` / `OPENAI_MODEL`** — swap to a smaller/faster tier
-  (e.g. a Haiku-class Anthropic model) for quicker per-call responses, at
-  some cost to reasoning depth. Worth A/B testing quality with
-  `scripts/analyze_scores.py` before committing to a smaller model. See
-  `scripts/verify_test_cases.py` below for a way to catch a model swap that
-  actually makes accuracy worse, not just faster.
+  for quicker, cheaper calls. Verify accuracy with
+  `python scripts/verify_test_cases.py --with-ai` before committing to a
+  smaller model — it's a real regression test, not a vibe check.
+  `claude-haiku-4-5-20251001` and `gpt-5.6-luna` both pass cleanly.
+
+  **`TEMPERATURE` only applies to the Anthropic path by default.** Newer
+  OpenAI models (gpt-5.6+) reject a custom `temperature` value unless
+  `OPENAI_REASONING_EFFORT=none` is also set (see `.env.example`) — without
+  it, Luna runs at its own default temperature, not `TEMPERATURE`'s value.
+  This is optional, not required — Luna passes the accuracy test fine
+  either way.
 
 ## Schools
 

@@ -53,7 +53,13 @@ class Settings:
     ANTHROPIC_API_KEY: str | None = os.environ.get("ANTHROPIC_API_KEY")
     OPENAI_API_KEY: str | None = os.environ.get("OPENAI_API_KEY")
     ANTHROPIC_MODEL: str = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
-    OPENAI_MODEL: str = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_MODEL: str = os.environ.get("OPENAI_MODEL", "gpt-5.6-luna")
+    OPENAI_REASONING_EFFORT: str | None = os.environ.get("OPENAI_REASONING_EFFORT") or None
+    # Optional: "none" | "low" | "medium" | "high" | "xhigh". Unset by default,
+    # meaning we don't send this param at all and the model uses its own
+    # default reasoning behavior. Per OpenAI's docs, temperature is only
+    # accepted alongside reasoning_effort="none" specifically — see
+    # _score_batch_openai for how that's handled.
 
     # --- Matching behavior ---
     BATCH_SIZE: int = int(os.environ.get("BATCH_SIZE", 8))

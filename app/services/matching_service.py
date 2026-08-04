@@ -205,15 +205,29 @@ def _score_batch_openai(user_preferences: str, listings_batch: list[dict], on_re
     user_message = f"Buyer wants: {user_preferences}\n\nListings:\n{json.dumps(_build_listing_payload(listings_batch), indent=2)}"
 
     def call():
-        raw = client.chat.completions.with_raw_response.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
+        # No temperature by default — newer OpenAI models (gpt-5.6 and
+        # later) reject any non-default value while reasoning is active,
+        # unlike Anthropic's API. Per OpenAI's docs, temperature is only
+        # accepted alongside reasoning_effort="none" specifically — so we
+        # only attempt it in that one case, and let it fail loudly and
+        # clearly (via the existing APIStatusError handling below) if that
+        # combination isn't actually accepted for this particular model.
+        # This makes the behavior empirically verifiable rather than
+        # something we just assume works.
+        kwargs = {
+            "model": settings.OPENAI_MODEL,
+            "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            temperature=settings.TEMPERATURE,
-            max_tokens=settings.MAX_TOKENS,
-        )
+            "max_completion_tokens": settings.MAX_TOKENS,
+        }
+        if settings.OPENAI_REASONING_EFFORT:
+            kwargs["reasoning_effort"] = settings.OPENAI_REASONING_EFFORT
+        if settings.OPENAI_REASONING_EFFORT == "none":
+            kwargs["temperature"] = settings.TEMPERATURE
+
+        raw = client.chat.completions.with_raw_response.create(**kwargs)
         _log_rate_limit_headers("OpenAI", raw.headers)
         return raw.parse()
 
