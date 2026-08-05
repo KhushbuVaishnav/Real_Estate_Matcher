@@ -1,7 +1,7 @@
 const { useState, useRef, useEffect } = React;
 
 // Point this at wherever your FastAPI backend is running.
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://real-estate-matcher-backend.onrender.com/";
 
 // Empty form input -> null (not sent as a filter), otherwise -> Number.
 // Used repeatedly below instead of repeating "value ? Number(value) : null" per field.
